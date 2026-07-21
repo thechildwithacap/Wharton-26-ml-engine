@@ -20,6 +20,9 @@ htmlcov/
 engine_output/
 *.log
 
+# Trained model artifacts (regenerate with train_model.py); keep the dir
+models/*.json
+
 # Editor / OS
 .vscode/
 .idea/

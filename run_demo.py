@@ -35,6 +35,8 @@ def main() -> None:
     ap.add_argument("--outdir", default="engine_output", help="CSV export directory")
     ap.add_argument("--no-backtest", action="store_true",
                     help="skip the template backtests (faster)")
+    ap.add_argument("--with-ml", action="store_true",
+                    help="train the ML alpha model and feed its ml_alpha into the engine")
     args = ap.parse_args()
 
     print("Loading synthetic universe "
@@ -47,6 +49,18 @@ def main() -> None:
     print(f"Client: {profile.name}  |  objective={profile.objective}  |  "
           f"risk={profile.risk_label}  |  turnover tol={profile.turnover_tolerance}\n")
 
+    # --- Optional: train the ML alpha model on this universe ---------------
+    alpha_model = None
+    if args.with_ml:
+        from wharton_ml_engine.ml import AlphaModel, train_alpha_model
+        print("Training ML alpha model (walk-forward, no look-ahead) ...")
+        trained = train_alpha_model(bundle, task="regression", horizon_days=21)
+        m = trained.metrics
+        print(f"  out-of-sample IC {m['mean_ic']:.3f} (t={m['ic_t_stat']:.2f}, "
+              f"hit-rate {m['hit_rate']:.0%})")
+        alpha_model = AlphaModel(trained)
+        print()
+
     dates = bundle.dates()
     # Decision date 1: ~6 months before the end of history.
     d1 = dates[-126]
@@ -55,7 +69,7 @@ def main() -> None:
 
     # --- 2. Initial construction -------------------------------------------
     print("### DECISION 1 — initial construction ###")
-    report1 = run_engine(bundle, profile, as_of=d1,
+    report1 = run_engine(bundle, profile, as_of=d1, alpha_model=alpha_model,
                          run_backtest=not args.no_backtest)
     print_summary(report1)
     initial_book = report1.candidate_weights
@@ -63,7 +77,7 @@ def main() -> None:
     # --- 3. Later rebalance decision, holding the initial book -------------
     print("\n### DECISION 2 — six months later, holding the initial book ###")
     report2 = run_engine(bundle, profile, as_of=d2,
-                         current_weights=initial_book,
+                         current_weights=initial_book, alpha_model=alpha_model,
                          run_backtest=not args.no_backtest)
     print_summary(report2)
 

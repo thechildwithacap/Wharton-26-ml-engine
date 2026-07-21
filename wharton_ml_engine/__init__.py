@@ -38,9 +38,10 @@ from .client import (
 from .config import CostModel, EngineConfig, PortfolioConstraints
 from .data import DataBundle, DataSource, SyntheticDataSource
 from .engine import EngineReport, run_engine
+from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "__version__",
@@ -58,4 +59,7 @@ __all__ = [
     "CostModel",
     "run_engine",
     "EngineReport",
+    "train_alpha_model",
+    "TrainedModel",
+    "AlphaModel",
 ]

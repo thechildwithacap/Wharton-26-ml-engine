@@ -1,0 +1,2 @@
+# Trained model artifacts are written here by train_model.py.
+# The JSON files are git-ignored (regenerate them with: python train_model.py).

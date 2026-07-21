@@ -19,6 +19,7 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 wharton-engine-demo = "run_demo:main"
+wharton-engine-train = "train_model:main"
 
 [tool.setuptools]
 packages = ["wharton_ml_engine",
@@ -27,6 +28,7 @@ packages = ["wharton_ml_engine",
             "wharton_ml_engine.signals",
             "wharton_ml_engine.risk",
             "wharton_ml_engine.backtest",
+            "wharton_ml_engine.ml",
             "wharton_ml_engine.engine",
             "wharton_ml_engine.reporting"]
 

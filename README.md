@@ -44,8 +44,14 @@ mapping directly to the PRD:
                  │ style-weight recommendation · signal stability│
                  └─────────────────────────────────────────────┘
                  ┌─────────────────────────────────────────────┐
+  ml ▶           │ ML LAYER (wharton_ml_engine/ml)              │  §6
+                 │ learns to combine signals into an alpha score│
+                 │ walk-forward CV · Information Coefficient    │
+                 └─────────────────────────────────────────────┘
+                 ┌─────────────────────────────────────────────┐
   engine ▶       │ INTEGRATION ENGINE (wharton_ml_engine/engine)│  §7
                  │ integrated score · construction · trade logic│
+                 │ (blends in ml_alpha when a model is trained) │
                  └─────────────────────────────────────────────┘
                  ┌─────────────────────────────────────────────┐
   reporting ▶    │ REPORTING (wharton_ml_engine/reporting)      │ §7.3 §10
@@ -192,6 +198,55 @@ Confidence** that makes the engine trade more cautiously when signals are shaky.
 
 ---
 
+## Machine-learning alpha model (PRD §6)
+
+The signal scores above are hand-built. The ML layer *learns from history* how
+to combine them into a single expected-return ranking — the **`ml_alpha`**
+signal — and folds it into the integrated score.
+
+```bash
+python train_model.py                 # train, evaluate, save to models/
+python run_demo.py --with-ml          # train + run the engine using ml_alpha
+```
+
+```python
+from wharton_ml_engine import SyntheticDataSource, run_engine, sample_profile
+from wharton_ml_engine.ml import train_alpha_model, AlphaModel
+
+bundle = SyntheticDataSource().load()
+trained = train_alpha_model(bundle, task="regression")   # or "classification"
+print(trained.metrics)          # out-of-sample IC, t-stat, hit rate
+print(trained.coefficients())   # what the model learned to weight (interpretable!)
+trained.save("models/alpha_model.json")
+
+report = run_engine(bundle, sample_profile(), alpha_model=AlphaModel(trained))
+```
+
+**How it's built (and why it's trustworthy):**
+
+* **Features** — the profile-independent signal scores (value, quality, growth,
+  GARP, income, momentum, low-vol, size, factor, macro-tilt, analyst), already
+  cross-sectionally normalised to 0–100.
+* **Label** — the *forward* return over a horizon (default 21 trading days),
+  demeaned across the universe so the model learns **relative selection**, not
+  market direction.
+* **No look-ahead** — features at date `t` use only data up to `t`; labels use
+  the realised `t → t+h` window; dates without a full forward window are dropped.
+* **Walk-forward evaluation** — expanding-window, out-of-sample, with a purge
+  gap. The headline metric is the **Information Coefficient (IC)** — the rank
+  correlation between the model's score and realised returns — plus its t-stat
+  and hit rate. This is the honest way to judge a stock-selection signal (R² is
+  near zero for return prediction and is *not* the right yardstick).
+* **Interpretable, dependency-light** — ridge / logistic regression implemented
+  in numpy (no scikit-learn). You can read off exactly what the model weights,
+  which is ideal for the IPS write-up. Models persist as plain JSON (no pickle).
+
+> On the deterministic synthetic data the IC is small (and sometimes not
+> statistically significant) — the tooling reports this honestly and treats
+> `ml_alpha` as *one input among many*, never a standalone strategy. On real
+> data with genuine cross-sectional structure, the same pipeline is where the
+> learning happens.
+
 ## Project layout
 
 ```
@@ -203,9 +258,11 @@ wharton_ml_engine/
   signals/             fundamental, quant, hybrid pods
   risk/                stock, portfolio, operational/mandate checks
   backtest/            templates, regime, style weights, stability
+  ml/                  dataset, models, train (walk-forward), predict, metrics
   engine/              integrate, construct, trade, pipeline
   reporting/           CSV export + console summary
-run_demo.py            end-to-end demonstration
+run_demo.py            end-to-end demonstration (--with-ml to include the model)
+train_model.py         train / evaluate / save the ML alpha model
 tests/                 pytest suite
 ```
 

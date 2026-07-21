@@ -73,6 +73,7 @@ class EngineReport:
 
     templates: Optional[Dict[str, BacktestResult]] = None
     templates_summary: Optional[pd.DataFrame] = field(default=None)
+    ml_metrics: Optional[Dict[str, float]] = None
 
     # ---- convenience views --------------------------------------------------
     def ranked_table(self, top: int = 30) -> pd.DataFrame:
@@ -101,6 +102,7 @@ def run_engine(
     as_of: Optional[pd.Timestamp] = None,
     current_weights: Optional[Dict[str, float]] = None,
     analyst_ratings: Optional[Dict[str, Dict[str, float]]] = None,
+    alpha_model: Optional[object] = None,
     run_backtest: bool = True,
     backtest_lookback_days: int = 1000,
     portfolio_value: float = 1_000_000.0,
@@ -129,7 +131,7 @@ def run_engine(
     stability = signal_stability(bundle, as_of, style_rec.weights)
 
     # --- signal, client, risk layers -----------------------------------------
-    signals = compute_signals(bundle, profile, as_of, analyst_ratings)
+    signals = compute_signals(bundle, profile, as_of, analyst_ratings, alpha_model)
     fit = compute_client_fit(bundle, profile, as_of)
     srisk = stock_risk_model(bundle, as_of)
     liq = liquidity_model(bundle, as_of, constraints, portfolio_value)
@@ -174,6 +176,7 @@ def run_engine(
         candidate_risk=cand_risk, crowding=crowd, concentration_alerts=alerts,
         turnover=turnover, mandate=mandate, data_quality=dq, decision=decision,
         templates=templates, templates_summary=tsummary,
+        ml_metrics=(dict(alpha_model.metrics) if alpha_model is not None else None),
     )
     report._sector_map = bundle.sectors
     return report

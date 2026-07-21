@@ -68,6 +68,9 @@ def decision_summary_dict(report: EngineReport) -> Dict[str, object]:
         "style_weights": {k: round(v, 3) for k, v in report.style_recommendation.weights.items()},
         "best_template": report.style_recommendation.best_template,
         "signal_confidence": round(report.signal_confidence, 3),
+        "ml_alpha_metrics": ({k: (round(v, 4) if isinstance(v, float) else v)
+                              for k, v in report.ml_metrics.items()}
+                             if report.ml_metrics else None),
         "data_quality": report.data_quality.status,
         "n_holdings": len(report.candidate_weights),
         "portfolio_volatility": round(report.candidate_risk.volatility, 4),
@@ -110,6 +113,11 @@ def format_summary(report: EngineReport) -> str:
              ", ".join(f"{k} {v:.0%}" for k, v in sorted(sw.items(), key=lambda kv: -kv[1])))
     L.append(f" Signal confidence: {report.signal_confidence:.2f}   "
              f"Data quality: {report.data_quality.status}")
+    if report.ml_metrics:
+        m = report.ml_metrics
+        L.append(f" ML alpha model: out-of-sample IC {m.get('mean_ic', float('nan')):.3f} "
+                 f"(t={m.get('ic_t_stat', float('nan')):.2f}, "
+                 f"hit-rate {m.get('hit_rate', float('nan')):.0%})")
     L.append("-" * 72)
     L.append(f" Candidate portfolio: {len(report.candidate_weights)} holdings")
     L.append(f"   volatility {_fmt_pct(report.candidate_risk.volatility)}  |  "

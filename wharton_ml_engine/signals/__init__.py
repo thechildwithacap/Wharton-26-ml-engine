@@ -39,12 +39,14 @@ def compute_signals(
     profile: ClientProfile,
     as_of: Optional[pd.Timestamp] = None,
     analyst_ratings: Optional[Dict[str, Dict[str, float]]] = None,
+    alpha_model: Optional[object] = None,
 ) -> pd.DataFrame:
     """Run every signal-layer model and return one ticker-indexed frame.
 
     Columns: value, quality, growth, garp, income, momentum, low_vol, size,
     factor, beta, volatility, macro_tilt, analyst, hybrid_alpha, theme_fit,
-    plus the ``margin_of_safety`` flag.
+    plus the ``margin_of_safety`` flag.  When a trained ``alpha_model`` is
+    supplied, its 0-100 ``ml_alpha`` learned score is added as a column.
     """
     if as_of is None:
         as_of = bundle.dates()[-1]
@@ -61,4 +63,6 @@ def compute_signals(
     out["analyst"] = analyst
     out["theme_fit"] = theme
     out["hybrid_alpha"] = hybrid
+    if alpha_model is not None:
+        out["ml_alpha"] = alpha_model.score(bundle, as_of).reindex(out.index)
     return out

@@ -53,15 +53,21 @@ def integrate_scores(
     core = weighted_blend(style_components, eff_weights)
     out["style_score"] = clip_score(core)
 
-    # 2. Blend in conviction (hybrid alpha) and theme fit.
-    integrated = weighted_blend(
-        {
-            "core": out["style_score"],
-            "hybrid_alpha": signals.get("hybrid_alpha", pd.Series(50.0, index=tickers)),
-            "theme_fit": signals.get("theme_fit", pd.Series(50.0, index=tickers)),
-        },
-        {"core": 0.68, "hybrid_alpha": 0.24, "theme_fit": 0.08},
-    )
+    # 2. Blend in conviction (hybrid alpha), the learned ML alpha (if present)
+    #    and theme fit.  When a trained model is supplied, it earns a share of
+    #    the blend at the expense of the hand-built core.
+    blend_inputs = {
+        "core": out["style_score"],
+        "hybrid_alpha": signals.get("hybrid_alpha", pd.Series(50.0, index=tickers)),
+        "theme_fit": signals.get("theme_fit", pd.Series(50.0, index=tickers)),
+    }
+    if "ml_alpha" in signals.columns:
+        blend_inputs["ml_alpha"] = signals["ml_alpha"]
+        blend_weights = {"core": 0.52, "ml_alpha": 0.22, "hybrid_alpha": 0.18,
+                         "theme_fit": 0.08}
+    else:
+        blend_weights = {"core": 0.68, "hybrid_alpha": 0.24, "theme_fit": 0.08}
+    integrated = weighted_blend(blend_inputs, blend_weights)
 
     # 3. Client-fit scaling: poor fit shrinks the score toward zero.
     fit = client_fit["client_fit"].reindex(tickers).fillna(50.0)
