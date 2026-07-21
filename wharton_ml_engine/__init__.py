@@ -36,16 +36,24 @@ from .client import (
     sample_profile,
 )
 from .config import CostModel, EngineConfig, PortfolioConstraints
-from .data import DataBundle, DataSource, SyntheticDataSource
+from .data import (
+    CSVDataSource,
+    DataBundle,
+    DataSource,
+    FinancialDatasetSource,
+    SyntheticDataSource,
+)
 from .engine import EngineReport, run_engine
 from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     "__version__",
     "SyntheticDataSource",
+    "FinancialDatasetSource",
+    "CSVDataSource",
     "DataSource",
     "DataBundle",
     "ClientProfile",

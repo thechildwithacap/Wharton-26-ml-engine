@@ -42,12 +42,24 @@ def analyst_overlay_model(
     # Proxy from fundamentals: a wide moat looks like high ROIC + margins;
     # good management like low accruals + steady growth; industry structure
     # like high gross margin.  These are placeholders, clearly marked as such.
+    # weighted_blend renormalises over whatever sub-signals are present, so a
+    # missing field (e.g. accruals absent from a data source) degrades to the
+    # remaining ones instead of producing NaN.
     proxy_moat = score_higher_is_better(fund["roic"])
-    proxy_mgmt = 0.5 * score_higher_is_better(fund["growth_stability"]) + \
-        0.5 * clip_score(100 - score_higher_is_better(fund["accruals"]))
+    proxy_mgmt = weighted_blend(
+        {
+            "stability": score_higher_is_better(fund["growth_stability"]),
+            "accruals": clip_score(100 - score_higher_is_better(fund["accruals"])),
+        },
+        {"stability": 0.5, "accruals": 0.5},
+    )
     proxy_industry = score_higher_is_better(fund["gross_margin"])
     proxy = {"moat": proxy_moat, "management": proxy_mgmt,
              "industry_structure": proxy_industry}
+
+    def _proxy_val(axis: str, t: str) -> float:
+        v = proxy[axis].get(t, 50.0)
+        return 50.0 if v is None or not np.isfinite(v) else float(v)
 
     scores = {}
     for t in tickers:
@@ -57,8 +69,8 @@ def analyst_overlay_model(
             if r is not None:
                 vals.append((float(r) - 1.0) / 4.0 * 100.0)   # 1..5 -> 0..100
             else:
-                vals.append(float(proxy[axis].get(t, 50.0)))
-        scores[t] = float(np.mean(vals))
+                vals.append(_proxy_val(axis, t))
+        scores[t] = float(np.mean(vals)) if vals else 50.0
     return pd.Series(scores, name="analyst").reindex(tickers)
 
 

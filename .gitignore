@@ -23,6 +23,9 @@ engine_output/
 # Trained model artifacts (regenerate with train_model.py); keep the dir
 models/*.json
 
+# Cached real datasets fetched from the API (regenerate with fetch_dataset.py)
+datasets/
+
 # Editor / OS
 .vscode/
 .idea/

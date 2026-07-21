@@ -28,6 +28,9 @@ def main() -> None:
     ap.add_argument("--task", choices=["regression", "classification"],
                     default="regression")
     ap.add_argument("--horizon", type=int, default=21, help="forward-return horizon (days)")
+    ap.add_argument("--source", default=None,
+                    help="path to a cached real dataset dir (from fetch_dataset.py); "
+                         "if omitted, uses the synthetic universe")
     ap.add_argument("--tickers", type=int, default=80)
     ap.add_argument("--years", type=float, default=10.0)
     ap.add_argument("--seed", type=int, default=11)
@@ -36,10 +39,17 @@ def main() -> None:
     ap.add_argument("--out", default="models/alpha_model.json")
     args = ap.parse_args()
 
-    print(f"Loading synthetic universe ({args.tickers} names, {args.years:g}y, "
-          f"seed {args.seed}) ...")
-    bundle = SyntheticDataSource(n_tickers=args.tickers, years=args.years,
-                                 seed=args.seed).load()
+    if args.source:
+        from wharton_ml_engine.data import CSVDataSource
+        print(f"Loading cached dataset from '{args.source}' ...")
+        bundle = CSVDataSource(args.source).load()
+        print(f"  {bundle.prices.shape[1]} tickers, "
+              f"{bundle.prices.index[0].date()} -> {bundle.prices.index[-1].date()}")
+    else:
+        print(f"Loading synthetic universe ({args.tickers} names, {args.years:g}y, "
+              f"seed {args.seed}) ...")
+        bundle = SyntheticDataSource(n_tickers=args.tickers, years=args.years,
+                                     seed=args.seed).load()
 
     print(f"Building training panel (horizon {args.horizon}d) ...")
     panel = build_training_panel(bundle, horizon_days=args.horizon)

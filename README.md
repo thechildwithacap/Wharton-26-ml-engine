@@ -132,11 +132,55 @@ gate that can veto any candidate book.
 
 ---
 
-## Plugging in real data (PRD §4)
+## Real data: financialdatasets.ai (PRD §4)
 
-Everything reads through `DataBundle`, produced by a `DataSource`. The default
-`SyntheticDataSource` fabricates a deterministic offline universe. For live
-work, implement a source that returns the same structures:
+The engine ships with a live adapter, **`FinancialDatasetSource`**, that pulls
+daily prices, historical financial metrics and company facts from
+[financialdatasets.ai](https://financialdatasets.ai) and assembles them into a
+`DataBundle` — identical in structure to the synthetic one, so every downstream
+layer (signals, risk, backtest, **ML training**) works unchanged.
+
+```bash
+export FINANCIAL_DATASETS_API_KEY=sk-...
+
+# 1) Fetch a real US-equity universe and cache it to CSVs
+python fetch_dataset.py --tickers AAPL,MSFT,NVDA,JPM,XOM,UNH,PG --years 6 \
+                        --out datasets/us_sample
+
+# 2) Train the ML alpha model on the real dataset
+python train_model.py --source datasets/us_sample
+
+# 3) Run the engine on it
+python -c "from wharton_ml_engine.data import CSVDataSource; \
+           from wharton_ml_engine import run_engine, sample_profile; \
+           from wharton_ml_engine.reporting import print_summary; \
+           print_summary(run_engine(CSVDataSource('datasets/us_sample').load(), sample_profile()))"
+```
+
+Key properties of the adapter:
+
+* **In-process fetch** — data is pulled by the Python process (not routed
+  through any tool/chat context), so multi-year histories are no problem.
+* **Point-in-time** — fundamentals are dated at `report_period + 45 days` to
+  approximate public availability, and read via `fundamentals_asof` — no
+  look-ahead. Earnings volatility / growth stability are derived from the
+  *expanding* history available at each report date.
+* **Robust field mapping** — API metric names map to the engine's fundamental
+  fields; missing fields (e.g. `accruals`) degrade gracefully instead of
+  nuking a signal.
+* **Fully tested offline** — the HTTP layer is a single injectable
+  `fetch_json`, so the whole assembly path is unit-tested with fixture payloads
+  shaped exactly like the real API (`tests/test_financial_dataset.py`).
+
+> Live pulls require an API key **and** account credits. Without them the
+> adapter raises a clear error; use `SyntheticDataSource` or a cached dataset
+> in the meantime.
+
+### Any `DataSource` works
+
+`FinancialDatasetSource`, `CSVDataSource`, and `SyntheticDataSource` all produce
+a `DataBundle`. To wire up a different provider (a broker export, the Wharton
+approved-list file, another API), implement one method:
 
 ```python
 from wharton_ml_engine.data import DataSource, DataBundle, SecurityMeta
@@ -150,9 +194,7 @@ class MyApprovedUniverseSource(DataSource):
         return DataBundle(prices, benchmarks, fundamentals, meta)
 ```
 
-Candidate real sources: the **FinancialDataset** API (prices, statements,
-metrics, screeners), CSV exports, or the official **Wharton Approved Stock
-List**. Once you have a broad-universe bundle, restrict it to the approved list:
+Once you have a broad-universe bundle, restrict it to the approved list:
 
 ```python
 approved = ["AAPL", "MSFT", ...]              # from Wharton
@@ -253,7 +295,7 @@ report = run_engine(bundle, sample_profile(), alpha_model=AlphaModel(trained))
 wharton_ml_engine/
   config.py            constraints, cost model, styles, engine config
   utils.py             cross-sectional scoring & performance helpers
-  data/                DataBundle, DataSource, SyntheticDataSource
+  data/                DataBundle + sources: Synthetic, FinancialDataset, CSV
   client/              questionnaire, profile, Client Fit
   signals/             fundamental, quant, hybrid pods
   risk/                stock, portfolio, operational/mandate checks
@@ -262,8 +304,9 @@ wharton_ml_engine/
   engine/              integrate, construct, trade, pipeline
   reporting/           CSV export + console summary
 run_demo.py            end-to-end demonstration (--with-ml to include the model)
-train_model.py         train / evaluate / save the ML alpha model
-tests/                 pytest suite
+train_model.py         train / evaluate / save the ML alpha model (--source for real data)
+fetch_dataset.py       download & cache a real universe from financialdatasets.ai
+tests/                 pytest suite (incl. sub-model & sub-sub-model tests)
 ```
 
 Run the tests:

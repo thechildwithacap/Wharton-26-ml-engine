@@ -1,9 +1,13 @@
 """Fundamental style pod: Value, Quality, Growth/GARP, Income (PRD 6.1.1).
 
-Every function takes an as-of fundamentals frame (ticker-indexed, produced by
-``DataBundle.fundamentals_asof``) and returns 0-100 scores plus, where the PRD
-calls for them, flags.  All scoring is cross-sectional ranking so the outputs
-are comparable across styles and dates.
+Each model takes an as-of fundamentals frame (ticker-indexed, from
+``DataBundle.fundamentals_asof``) and returns a **DataFrame that exposes its
+sub-signals as well as the headline score** — e.g. the Value Model returns its
+valuation / balance-sheet / cash-flow sub-scores next to the composite Value
+Score.  Surfacing the sub-signals makes the model auditable (PRD §11) and lets
+the test-suite verify each sub-sub-model independently.
+
+All scores are 0-100 cross-sectional ranks; higher = more attractive.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ from ..utils import (
 
 
 def value_model(fund: pd.DataFrame) -> pd.DataFrame:
-    """Value Score with a margin-of-safety flag."""
+    """Value Score from valuation, balance-sheet and cash-flow sub-signals."""
     valuation = weighted_blend(
         {
             "pe": score_lower_is_better(fund["pe"]),
@@ -47,13 +51,17 @@ def value_model(fund: pd.DataFrame) -> pd.DataFrame:
         {"valuation": 0.55, "balance_sheet": 0.2, "cash_flow": 0.25},
     )
     out = pd.DataFrame(index=fund.index)
+    out["valuation"] = clip_score(valuation)
+    out["balance_sheet"] = clip_score(balance_sheet)
+    out["cash_flow"] = clip_score(cash_flow)
     out["value"] = clip_score(value)
     # Margin of safety: cheap AND financially sound (not a value trap).
     out["margin_of_safety"] = (valuation >= 70.0) & (balance_sheet >= 50.0)
     return out
 
 
-def quality_model(fund: pd.DataFrame) -> pd.Series:
+def quality_model(fund: pd.DataFrame) -> pd.DataFrame:
+    """Quality Score from profitability and stability sub-signals."""
     profitability = weighted_blend(
         {
             "roe": score_higher_is_better(fund["roe"]),
@@ -73,10 +81,15 @@ def quality_model(fund: pd.DataFrame) -> pd.Series:
         {"profitability": profitability, "stability": stability},
         {"profitability": 0.6, "stability": 0.4},
     )
-    return clip_score(quality).rename("quality")
+    out = pd.DataFrame(index=fund.index)
+    out["profitability"] = clip_score(profitability)
+    out["stability"] = clip_score(stability)
+    out["quality"] = clip_score(quality)
+    return out
 
 
-def growth_garp_model(fund: pd.DataFrame, value_score: pd.Series) -> pd.DataFrame:
+def growth_garp_model(fund: pd.DataFrame) -> pd.DataFrame:
+    """Growth Score and GARP Score (growth at a reasonable price)."""
     growth = weighted_blend(
         {
             "revenue_growth": score_higher_is_better(fund["revenue_growth"]),
@@ -85,52 +98,55 @@ def growth_garp_model(fund: pd.DataFrame, value_score: pd.Series) -> pd.DataFram
         },
         {"revenue_growth": 0.4, "eps_growth": 0.4, "growth_stability": 0.2},
     )
-    # GARP: growth at a reasonable price.  A PEG-style ratio = P/E divided by
-    # EPS growth (%); lower is better, and we only reward genuine growers.
+    # GARP: a PEG-style ratio = P/E divided by EPS growth (%); lower is better.
     peg = fund["pe"] / (fund["eps_growth"].clip(lower=0.01) * 100.0)
     garp_cheap = score_lower_is_better(peg)
     garp = weighted_blend(
         {"garp_cheap": garp_cheap, "growth": growth},
         {"garp_cheap": 0.6, "growth": 0.4},
     )
-    # Growers with collapsing valuations (very low value_score) get a haircut.
     out = pd.DataFrame(index=fund.index)
+    out["growth_component"] = clip_score(growth)
+    out["garp_cheap"] = clip_score(garp_cheap)
     out["growth"] = clip_score(growth)
     out["garp"] = clip_score(garp)
     return out
 
 
-def income_model(fund: pd.DataFrame) -> pd.Series:
+def income_model(fund: pd.DataFrame) -> pd.DataFrame:
+    """Income Score from dividend yield, coverage and payout sustainability."""
     payers = fund["dividend_yield"] > 0
     yield_score = score_higher_is_better(fund["dividend_yield"].where(payers))
-    # Sustainability: a moderate payout ratio is best (too high is risky, too
-    # low means little income); reward payout coverage by FCF.
+    # Sustainability: penalise a payout ratio above 60%; reward FCF coverage.
     payout = fund["payout_ratio"].where(payers)
-    payout_penalty = (payout - 0.6).clip(lower=0) * 60.0     # penalise > 60% payout
+    payout_penalty = (payout - 0.6).clip(lower=0) * 60.0
     coverage = score_higher_is_better(fund["fcf_yield"].where(payers))
     income = weighted_blend(
         {"yield": yield_score, "coverage": coverage},
         {"yield": 0.7, "coverage": 0.3},
     )
     income = (income - payout_penalty).where(payers)
-    # Non-payers get a low-but-nonzero income score (they may still be great
-    # stocks on other styles).
+    # Non-payers get a low-but-nonzero score (may still be great on other styles).
     income = income.fillna(15.0)
-    return clip_score(income).rename("income")
+    out = pd.DataFrame(index=fund.index)
+    out["yield_score"] = clip_score(yield_score).fillna(0.0)
+    out["coverage"] = clip_score(coverage).fillna(0.0)
+    out["income"] = clip_score(income)
+    return out
 
 
 def fundamental_scores(fund: pd.DataFrame) -> pd.DataFrame:
-    """Assemble all fundamental style scores into one frame."""
+    """Assemble the headline fundamental style scores into one frame."""
     val = value_model(fund)
     qual = quality_model(fund)
-    gg = growth_garp_model(fund, val["value"])
+    gg = growth_garp_model(fund)
     inc = income_model(fund)
 
     out = pd.DataFrame(index=fund.index)
     out["value"] = val["value"]
     out["margin_of_safety"] = val["margin_of_safety"]
-    out["quality"] = qual
+    out["quality"] = qual["quality"]
     out["growth"] = gg["growth"]
     out["garp"] = gg["garp"]
-    out["income"] = inc
+    out["income"] = inc["income"]
     return out

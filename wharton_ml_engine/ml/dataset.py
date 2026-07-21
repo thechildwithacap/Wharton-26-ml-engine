@@ -109,6 +109,9 @@ def build_training_panel(
         return pd.DataFrame(columns=["date", "ticker", *ML_FEATURES,
                                      "fwd_return", "fwd_excess", "outperform"])
     panel = pd.concat(rows, ignore_index=True)
-    # Drop rows with any missing feature (rare; keeps the matrix clean).
-    panel = panel.dropna(subset=ML_FEATURES).reset_index(drop=True)
-    return panel
+    # Impute residual missing features to neutral (50 on the 0-100 scale)
+    # rather than dropping rows — a data source that lacks one field (e.g.
+    # accruals) should not wipe out the whole training set.  A feature that is
+    # entirely constant is harmlessly zeroed by the scaler downstream.
+    panel[ML_FEATURES] = panel[ML_FEATURES].fillna(50.0)
+    return panel.reset_index(drop=True)

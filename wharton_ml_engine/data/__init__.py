@@ -1,5 +1,7 @@
 """Data ingestion layer (PRD section 4)."""
 
+from .csv_source import CSVDataSource, load_bundle, save_bundle
+from .financial_dataset import FinancialDatasetSource
 from .source import (
     FUNDAMENTAL_FIELDS,
     DataBundle,
@@ -14,4 +16,8 @@ __all__ = [
     "DataSource",
     "SecurityMeta",
     "SyntheticDataSource",
+    "FinancialDatasetSource",
+    "CSVDataSource",
+    "save_bundle",
+    "load_bundle",
 ]
