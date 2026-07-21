@@ -1,5 +1,11 @@
 """Integration layer — the main portfolio engine (PRD section 7)."""
 
+from .backtest_portfolio import (
+    ComparisonResult,
+    StrategyResult,
+    backtest_ml_vs_rules,
+    format_comparison,
+)
 from .construct import ConstructionResult, construct_portfolio
 from .integrate import integrate_scores
 from .pipeline import EngineReport, run_engine
@@ -14,4 +20,8 @@ __all__ = [
     "decide_trades",
     "EngineReport",
     "run_engine",
+    "backtest_ml_vs_rules",
+    "ComparisonResult",
+    "StrategyResult",
+    "format_comparison",
 ]

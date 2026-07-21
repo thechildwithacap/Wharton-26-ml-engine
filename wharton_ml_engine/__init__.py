@@ -43,11 +43,17 @@ from .data import (
     FinancialDatasetSource,
     SyntheticDataSource,
 )
-from .engine import EngineReport, run_engine
+from .engine import (
+    ComparisonResult,
+    EngineReport,
+    backtest_ml_vs_rules,
+    format_comparison,
+    run_engine,
+)
 from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = [
     "__version__",
@@ -70,4 +76,7 @@ __all__ = [
     "train_alpha_model",
     "TrainedModel",
     "AlphaModel",
+    "backtest_ml_vs_rules",
+    "ComparisonResult",
+    "format_comparison",
 ]

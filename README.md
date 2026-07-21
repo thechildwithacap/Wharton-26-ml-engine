@@ -289,6 +289,50 @@ report = run_engine(bundle, sample_profile(), alpha_model=AlphaModel(trained))
 > data with genuine cross-sectional structure, the same pipeline is where the
 > learning happens.
 
+## Does the ML actually help? (ML-driven vs rule-only backtest)
+
+The engine can tell you whether the learned `ml_alpha` earns its place. It
+trains the model on the first part of history, then runs **both** engines —
+rule-only and ML-augmented — forward on the held-out window and compares
+net-of-cost performance against the benchmark.
+
+```bash
+python backtest_compare.py                       # synthetic, 60/40 split
+python backtest_compare.py --source datasets/us_sample --split 0.6
+```
+
+```python
+from wharton_ml_engine import (SyntheticDataSource, sample_profile,
+                               backtest_ml_vs_rules, format_comparison)
+
+bundle = SyntheticDataSource(years=10).load()
+train_end = bundle.dates()[int(len(bundle.dates()) * 0.6)]
+result = backtest_ml_vs_rules(bundle, sample_profile(), train_end=train_end)
+print(format_comparison(result))
+result.equity_curves().to_csv("ml_vs_rules_equity.csv")
+```
+
+**Why the comparison is honest:**
+
+* **No leakage** — the model is trained on `bundle.before(train_end)`; the
+  backtest runs on `[train_end, end]`, so the model never saw a return realised
+  in the test window. Features at each rebalance are point-in-time.
+* **Isolates the ML** — on every rebalance both strategies use *identical*
+  style weights, client fit, risk and liquidity inputs. The only difference is
+  whether `ml_alpha` enters the integrated score, so any performance gap is the
+  ML contribution — not a different risk posture.
+* **Realistic** — monthly rebalancing, position/sector/liquidity caps enforced,
+  transaction costs charged on turnover at each rebalance.
+
+Output compares `ann_return`, `ann_vol`, `sharpe`, `max_drawdown`,
+`info_ratio` and `avg_turnover` for **rule-only**, **ml-driven** and the
+**benchmark**, and prints a verdict (ML added value / hurt / neutral).
+
+> On the synthetic universe the learned signal is weak, so the ML result is
+> typically neutral-to-slightly-negative — as it should be. The value is the
+> rigorous, leak-free harness: point it at real data (`--source`) and it gives
+> a trustworthy read on whether the model is worth using.
+
 ## Project layout
 
 ```
@@ -306,6 +350,7 @@ wharton_ml_engine/
 run_demo.py            end-to-end demonstration (--with-ml to include the model)
 train_model.py         train / evaluate / save the ML alpha model (--source for real data)
 fetch_dataset.py       download & cache a real universe from financialdatasets.ai
+backtest_compare.py    ML-driven vs rule-only engine, out-of-sample
 tests/                 pytest suite (incl. sub-model & sub-sub-model tests)
 ```
 

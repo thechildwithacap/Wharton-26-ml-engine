@@ -107,6 +107,22 @@ class DataBundle:
         as_of = pd.Timestamp(as_of)
         return self.prices.loc[self.prices.index <= as_of]
 
+    def before(self, as_of: pd.Timestamp) -> "DataBundle":
+        """Return a copy truncated to data on or before ``as_of``.
+
+        Used to build a leak-free *training* bundle: a model fit on
+        ``bundle.before(train_end)`` can never see prices or fundamentals from
+        the out-of-sample backtest window.
+        """
+        as_of = pd.Timestamp(as_of)
+        fund_dates = self.fundamentals.index.get_level_values(0)
+        return DataBundle(
+            prices=self.prices.loc[self.prices.index <= as_of].copy(),
+            benchmarks=self.benchmarks.loc[self.benchmarks.index <= as_of].copy(),
+            fundamentals=self.fundamentals.loc[fund_dates <= as_of].copy(),
+            meta=dict(self.meta),
+        )
+
     def restrict_universe(self, tickers: List[str]) -> "DataBundle":
         """Return a copy filtered to ``tickers`` (the approved list, PRD 4.2)."""
         keep = [t for t in tickers if t in self.prices.columns]
