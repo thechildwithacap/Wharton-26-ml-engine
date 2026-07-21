@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wharton-ml-engine"
+version = "1.0.0"
+description = "Multi-model ML investment engine for the Wharton Global High School Investment Competition (internal decision-support system)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+wharton-engine-demo = "run_demo:main"
+
+[tool.setuptools]
+packages = ["wharton_ml_engine",
+            "wharton_ml_engine.data",
+            "wharton_ml_engine.client",
+            "wharton_ml_engine.signals",
+            "wharton_ml_engine.risk",
+            "wharton_ml_engine.backtest",
+            "wharton_ml_engine.engine",
+            "wharton_ml_engine.reporting"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
