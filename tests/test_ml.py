@@ -131,3 +131,33 @@ def test_engine_uses_ml_alpha(trained, ml_bundle):
     assert "ml_alpha" in report.signals.columns
     assert report.ml_metrics is not None
     assert report.mandate.passed
+
+
+# --- extended (full SEC fundamental) feature set -------------------------
+
+def test_extended_features_train_and_score(ml_bundle):
+    from wharton_ml_engine.ml import (
+        EXTENDED_FEATURES,
+        ML_FEATURES,
+        RAW_FUNDAMENTAL_FEATURES,
+        TrainedModel,
+    )
+    tr = train_alpha_model(ml_bundle, task="regression", extended=True, alpha=15.0)
+    assert len(tr.feature_names) == len(EXTENDED_FEATURES)
+    assert len(EXTENDED_FEATURES) == len(ML_FEATURES) + len(RAW_FUNDAMENTAL_FEATURES)
+    assert tr.meta.get("extended") is True
+    assert any(f.startswith("f_") for f in tr.feature_names)
+    # scoring uses the extended feature frame automatically
+    s = AlphaModel(tr).score(ml_bundle)
+    assert s.dropna().between(0, 100).all()
+    # save/load round-trip preserves the extended predictions
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "m.json")
+        tr.save(p)
+        reloaded = TrainedModel.load(p)
+    assert is_extended_names(reloaded.feature_names)
+
+
+def is_extended_names(names):
+    return any(str(f).startswith("f_") for f in names)

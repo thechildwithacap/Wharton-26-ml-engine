@@ -36,6 +36,9 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--splits", type=int, default=6, help="walk-forward folds")
     ap.add_argument("--alpha", type=float, default=10.0, help="ridge L2 strength")
+    ap.add_argument("--extended", action="store_true",
+                    help="train on the full SEC fundamental feature set (raw ranked "
+                         "line items) plus the composite style scores")
     ap.add_argument("--out", default="models/alpha_model.json")
     args = ap.parse_args()
 
@@ -51,15 +54,17 @@ def main() -> None:
         bundle = SyntheticDataSource(n_tickers=args.tickers, years=args.years,
                                      seed=args.seed).load()
 
-    print(f"Building training panel (horizon {args.horizon}d) ...")
-    panel = build_training_panel(bundle, horizon_days=args.horizon)
+    print(f"Building training panel (horizon {args.horizon}d"
+          f"{', extended SEC features' if args.extended else ''}) ...")
+    panel = build_training_panel(bundle, horizon_days=args.horizon, extended=args.extended)
     print(f"  {len(panel):,} samples across {panel['date'].nunique()} rebalance dates")
 
     print(f"Training {args.task} model with {args.splits}-fold walk-forward CV ...")
     hp = {"alpha": args.alpha} if args.task == "regression" else \
         {"l2": 1.0, "lr": 0.3, "epochs": 600}
     trained = train_alpha_model(bundle, task=args.task, horizon_days=args.horizon,
-                                n_splits=args.splits, panel=panel, **hp)
+                                n_splits=args.splits, panel=panel,
+                                extended=args.extended, **hp)
 
     m = trained.metrics
     print("\n" + "=" * 60)

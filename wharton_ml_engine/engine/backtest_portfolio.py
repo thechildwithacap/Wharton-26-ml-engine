@@ -149,6 +149,7 @@ def backtest_ml_vs_rules(
     ml_horizon: int = 21,
     retrain_every: Optional[int] = None,
     train_lookback_days: Optional[int] = None,
+    extended_features: bool = False,
     portfolio_value: float = 1_000_000.0,
     benchmark_index: str = "SPX",
 ) -> ComparisonResult:
@@ -176,7 +177,7 @@ def backtest_ml_vs_rules(
     retrain_metrics: List[Dict[str, float]] = []
     if alpha_model is None and not walk_forward:
         trained = train_alpha_model(bundle.before(train_end), task=ml_task,
-                                    horizon_days=ml_horizon)
+                                    horizon_days=ml_horizon, extended=extended_features)
         alpha_model = AlphaModel(trained)
         ml_metrics = dict(trained.metrics)
     elif alpha_model is not None:
@@ -187,7 +188,8 @@ def backtest_ml_vs_rules(
         nonlocal alpha_model
         tb = _train_bundle(bundle, d, train_lookback_days)
         try:
-            trained = train_alpha_model(tb, task=ml_task, horizon_days=ml_horizon)
+            trained = train_alpha_model(tb, task=ml_task, horizon_days=ml_horizon,
+                                        extended=extended_features)
         except ValueError:
             if alpha_model is None:                       # cannot proceed yet
                 raise

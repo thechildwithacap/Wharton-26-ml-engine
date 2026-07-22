@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from ..data.source import DataBundle
-from .dataset import ML_FEATURES, build_training_panel
+from .dataset import ML_FEATURES, build_training_panel, feature_columns
 from .metrics import accuracy, ic_summary, per_date_ic, r2_score
 from .models import (
     LogisticRegressor,
@@ -164,14 +164,20 @@ def train_alpha_model(
     start: Optional[pd.Timestamp] = None,
     end: Optional[pd.Timestamp] = None,
     panel: Optional[pd.DataFrame] = None,
+    extended: bool = False,
     **hp,
 ) -> TrainedModel:
-    """Build the panel, evaluate walk-forward, then fit the final live model."""
-    feature_names = feature_names or ML_FEATURES
+    """Build the panel, evaluate walk-forward, then fit the final live model.
+
+    ``extended=True`` trains on the full SEC fundamental feature set (raw ranked
+    line items) in addition to the composite style scores.
+    """
+    if feature_names is None:
+        feature_names = feature_columns(extended)
     target_col = "outperform" if task == "classification" else "fwd_excess"
     if panel is None:
         panel = build_training_panel(bundle, horizon_days=horizon_days,
-                                     start=start, end=end)
+                                     start=start, end=end, extended=extended)
     if panel.empty:
         raise ValueError("training panel is empty — need more history")
 
@@ -194,6 +200,8 @@ def train_alpha_model(
         "date_range": [str(panel["date"].min()), str(panel["date"].max())],
         "hyperparams": hp,
         "n_splits": n_splits,
+        "extended": bool(any(str(f).startswith("f_") for f in feature_names)),
+        "n_features": len(feature_names),
     }
     return TrainedModel(model=model, scaler=scaler, feature_names=feature_names,
                         task=task, target_col=target_col, horizon_days=horizon_days,

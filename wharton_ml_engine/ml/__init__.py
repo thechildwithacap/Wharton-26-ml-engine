@@ -19,7 +19,14 @@ Quick start::
     ml_alpha = alpha.score(bundle)  # 0-100 per ticker at the latest date
 """
 
-from .dataset import ML_FEATURES, build_training_panel, feature_frame
+from .dataset import (
+    EXTENDED_FEATURES,
+    ML_FEATURES,
+    RAW_FUNDAMENTAL_FEATURES,
+    build_training_panel,
+    feature_columns,
+    feature_frame,
+)
 from .metrics import ic_summary, per_date_ic, rank_ic
 from .models import LogisticRegressor, RidgeRegressor, StandardScaler
 from .predict import AlphaModel
@@ -27,6 +34,9 @@ from .train import TrainedModel, train_alpha_model, walk_forward_evaluate
 
 __all__ = [
     "ML_FEATURES",
+    "EXTENDED_FEATURES",
+    "RAW_FUNDAMENTAL_FEATURES",
+    "feature_columns",
     "feature_frame",
     "build_training_panel",
     "rank_ic",

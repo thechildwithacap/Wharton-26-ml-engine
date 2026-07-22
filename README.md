@@ -318,6 +318,11 @@ report = run_engine(bundle, sample_profile(), alpha_model=AlphaModel(trained))
 * **Interpretable, dependency-light** — ridge / logistic regression implemented
   in numpy (no scikit-learn). You can read off exactly what the model weights,
   which is ideal for the IPS write-up. Models persist as plain JSON (no pickle).
+* **Extended feature set (`extended=True` / `--extended`)** — beyond the 11
+  composite style scores, the model can train on the **raw SEC fundamental line
+  items** (P/E, P/B, EV/EBIT, FCF yield, ROE, ROIC, margins, leverage, growth,
+  coverage, dividends — cross-sectionally ranked), so it learns from *all* the
+  underlying data, not just the hand-built composites (26 features total).
 
 > On the deterministic synthetic data the IC is small (and sometimes not
 > statistically significant) — the tooling reports this honestly and treats

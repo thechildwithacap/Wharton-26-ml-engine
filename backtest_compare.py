@@ -41,6 +41,9 @@ def main() -> None:
     ap.add_argument("--train-lookback-days", type=int, default=None,
                     help="walk-forward: use a rolling training window of this many "
                          "days (default: expanding)")
+    ap.add_argument("--extended-ml", action="store_true",
+                    help="train the ML model on the full SEC fundamental feature set "
+                         "(raw ranked line items) in addition to the style scores")
     ap.add_argument("--out", default=None, help="optional dir to write equity-curve CSV")
     args = ap.parse_args()
 
@@ -63,10 +66,14 @@ def main() -> None:
         print(f"Walk-forward: retraining every {args.retrain_every} rebalances "
               f"({'rolling ' + str(args.train_lookback_days) + 'd' if args.train_lookback_days else 'expanding'} window)\n")
 
+    if args.extended_ml:
+        print("Extended ML: training on the full SEC fundamental feature set\n")
+
     result = backtest_ml_vs_rules(bundle, sample_profile(), train_end=train_end,
                                   ml_horizon=args.horizon,
                                   retrain_every=args.retrain_every,
-                                  train_lookback_days=args.train_lookback_days)
+                                  train_lookback_days=args.train_lookback_days,
+                                  extended_features=args.extended_ml)
     print(format_comparison(result))
 
     if args.out:
