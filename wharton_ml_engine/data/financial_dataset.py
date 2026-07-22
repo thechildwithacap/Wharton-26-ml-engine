@@ -122,10 +122,20 @@ def _default_fetch_json(api_key: str) -> Callable[[str, Dict[str, object]], dict
         urllib.request.HTTPSHandler(context=ctx),
     )
 
+    # A browser-like User-Agent is required: the endpoint sits behind Cloudflare
+    # bot management, which rejects the default ``Python-urllib`` client with a
+    # 403 (Cloudflare error 1010) before the request ever reaches the API.
+    headers = {
+        "X-API-KEY": api_key,
+        "Accept": "application/json",
+        "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+    }
+
     def fetch(path: str, params: Dict[str, object]) -> dict:
         qs = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
         url = f"{API_BASE}/{path.lstrip('/')}?{qs}"
-        req = urllib.request.Request(url, headers={"X-API-KEY": api_key})
+        req = urllib.request.Request(url, headers=headers)
         with opener.open(req, timeout=60) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
