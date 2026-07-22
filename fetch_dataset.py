@@ -19,8 +19,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 
-from wharton_ml_engine.data import FinancialDatasetSource, save_bundle
+from wharton_ml_engine.data import (
+    FinancialDatasetSource,
+    WebDataSource,
+    save_bundle,
+)
 
 # A reasonable, liquid, sector-diverse default universe.
 DEFAULT_UNIVERSE = [
@@ -40,15 +45,30 @@ def main() -> None:
     ap.add_argument("--years", type=float, default=6.0)
     ap.add_argument("--end", default=dt.date.today().isoformat())
     ap.add_argument("--out", default="datasets/us_sample")
+    ap.add_argument("--provider", default="twelvedata",
+                    choices=["twelvedata", "fmp", "financialdatasets"],
+                    help="data provider (default: twelvedata, free prices + SEC fundamentals)")
+    ap.add_argument("--price-key", default=None,
+                    help="provider API key (or set PRICE_API_KEY env)")
     args = ap.parse_args()
 
     end = dt.date.fromisoformat(args.end)
     start = end - dt.timedelta(days=int(args.years * 365.25))
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
 
-    print(f"Fetching {len(tickers)} tickers {start} -> {end} from financialdatasets.ai ...")
-    src = FinancialDatasetSource(tickers=tickers, start=start.isoformat(),
-                                 end=end.isoformat())
+    print(f"Fetching {len(tickers)} tickers {start} -> {end} via {args.provider} ...")
+    if args.provider == "financialdatasets":
+        src = FinancialDatasetSource(tickers=tickers, start=start.isoformat(),
+                                     end=end.isoformat())
+    else:
+        key = args.price_key or os.environ.get("PRICE_API_KEY")
+        if not key:
+            raise SystemExit("Provide --price-key or set PRICE_API_KEY "
+                             f"for provider {args.provider}.")
+        print("  prices from provider, fundamentals from SEC EDGAR (free) ...")
+        src = WebDataSource(tickers=tickers, start=start.isoformat(),
+                            end=end.isoformat(), price_provider=args.provider,
+                            price_api_key=key)
     bundle = src.load()
     print(f"  prices:       {bundle.prices.shape[0]} days x {bundle.prices.shape[1]} tickers")
     print(f"  benchmarks:   {list(bundle.benchmarks.columns)}")

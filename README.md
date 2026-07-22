@@ -132,7 +132,43 @@ gate that can veto any candidate book.
 
 ---
 
-## Real data: financialdatasets.ai (PRD §4)
+## Free real data: provider prices + SEC EDGAR (PRD §4)
+
+No paid API required. **`WebDataSource`** fuses daily prices from a free-tier
+provider (TwelveData or FMP — free, no credit card) with fundamentals from
+**SEC EDGAR** (no key at all), into the same `DataBundle`. SEC stamps every fact
+with its `filed` date, so fundamentals are genuinely point-in-time.
+
+```bash
+# TwelveData: sign up (free) at twelvedata.com for a key; FMP works too.
+export PRICE_API_KEY=your_free_key
+
+python fetch_dataset.py --provider twelvedata \
+    --tickers AAPL,MSFT,NVDA,JPM,UNH,JNJ,PG,KO,HD,CAT --years 6 --out datasets/us_sample
+
+python backtest_compare.py --source datasets/us_sample --split 0.6 --retrain-every 6
+```
+
+```python
+from wharton_ml_engine.data import WebDataSource
+bundle = WebDataSource(["AAPL","MSFT","NVDA","JPM","UNH","JNJ"],
+                       start="2019-01-01", end="2024-12-31",
+                       price_provider="twelvedata", price_api_key="…").load()
+```
+
+* **Prices** — provider daily adjusted close + volume (for ADV / liquidity).
+* **Fundamentals** — SEC EDGAR XBRL: P/E, P/B, ROE, margins, leverage, growth,
+  dividends, derived monthly with each month's price so valuation tracks the
+  market; annual (10-K) figures for flows, point-in-time by filing date.
+* **Sectors** — mapped from each filer's SEC SIC code.
+* **Tested offline** — provider and SEC HTTP layers are injectable, so parsing
+  and assembly are covered by fixtures (`tests/test_web_source.py`).
+
+> Note: a few tickers whose SEC CIK points at a non-operating entity return
+> sparse fundamentals; the engine tolerates the gaps (missing fields fall back
+> to neutral). Stick to primary large-cap listings for the cleanest data.
+
+## Paid alternative: financialdatasets.ai (PRD §4)
 
 The engine ships with a live adapter, **`FinancialDatasetSource`**, that pulls
 daily prices, historical financial metrics and company facts from
