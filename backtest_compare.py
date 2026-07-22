@@ -35,6 +35,12 @@ def main() -> None:
     ap.add_argument("--split", type=float, default=0.6,
                     help="fraction of history used to train the ML model (rest is tested)")
     ap.add_argument("--horizon", type=int, default=21, help="ML forward-return horizon")
+    ap.add_argument("--retrain-every", type=int, default=None,
+                    help="walk-forward: retrain the ML model every N rebalances "
+                         "(months); omit for a single fit at the split")
+    ap.add_argument("--train-lookback-days", type=int, default=None,
+                    help="walk-forward: use a rolling training window of this many "
+                         "days (default: expanding)")
     ap.add_argument("--out", default=None, help="optional dir to write equity-curve CSV")
     args = ap.parse_args()
 
@@ -53,8 +59,14 @@ def main() -> None:
     print(f"Training ML on data through {train_end.date()}, "
           f"testing on {train_end.date()} .. {dates[-1].date()} ...\n")
 
+    if args.retrain_every:
+        print(f"Walk-forward: retraining every {args.retrain_every} rebalances "
+              f"({'rolling ' + str(args.train_lookback_days) + 'd' if args.train_lookback_days else 'expanding'} window)\n")
+
     result = backtest_ml_vs_rules(bundle, sample_profile(), train_end=train_end,
-                                  ml_horizon=args.horizon)
+                                  ml_horizon=args.horizon,
+                                  retrain_every=args.retrain_every,
+                                  train_lookback_days=args.train_lookback_days)
     print(format_comparison(result))
 
     if args.out:

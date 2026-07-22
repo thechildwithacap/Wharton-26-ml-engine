@@ -6,6 +6,7 @@ import pytest
 
 from wharton_ml_engine import SyntheticDataSource, sample_profile
 from wharton_ml_engine.engine import backtest_ml_vs_rules, format_comparison
+from wharton_ml_engine.engine.backtest_portfolio import _train_bundle
 from wharton_ml_engine.ml import AlphaModel, train_alpha_model
 
 
@@ -83,3 +84,30 @@ def test_accepts_pretrained_model(bundle, train_end):
     res = backtest_ml_vs_rules(bundle, sample_profile(), train_end=train_end,
                                alpha_model=AlphaModel(trained))
     assert not res.strategies["ml_driven"].returns.empty
+    assert res.retrain_dates == []               # fixed model -> no retraining
+
+
+# --- walk-forward retraining ---------------------------------------------
+
+def test_train_bundle_expanding_and_rolling(bundle):
+    d = bundle.dates()[int(len(bundle.dates()) * 0.7)]
+    exp = _train_bundle(bundle, d, None)
+    assert exp.prices.index.max() <= d                       # leak-free
+    assert exp.prices.index.min() == bundle.prices.index.min()  # expanding
+    roll = _train_bundle(bundle, d, lookback_days=365 * 2)
+    assert roll.prices.index.max() <= d
+    assert roll.prices.index.min() > exp.prices.index.min()  # rolling is shorter
+
+
+def test_walk_forward_retrains_leak_free(bundle):
+    # Shorter test window + coarse cadence keeps this fast.
+    te = bundle.dates()[int(len(bundle.dates()) * 0.7)]
+    res = backtest_ml_vs_rules(bundle, sample_profile(), train_end=te,
+                               retrain_every=12)
+    assert len(res.retrain_dates) >= 2
+    assert res.ml_metrics.get("n_retrains") == len(res.retrain_dates)
+    # Every refit happens inside the test window (never on future data).
+    assert all(d >= res.test_start for d in res.retrain_dates)
+    assert res.retrain_dates == sorted(res.retrain_dates)
+    assert not res.strategies["ml_driven"].returns.empty
+    assert "WALK-FORWARD" in format_comparison(res)

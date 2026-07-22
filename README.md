@@ -297,8 +297,10 @@ rule-only and ML-augmented — forward on the held-out window and compares
 net-of-cost performance against the benchmark.
 
 ```bash
-python backtest_compare.py                       # synthetic, 60/40 split
+python backtest_compare.py                       # synthetic, 60/40 split, single fit
 python backtest_compare.py --source datasets/us_sample --split 0.6
+python backtest_compare.py --retrain-every 6     # walk-forward: refit every 6 months
+python backtest_compare.py --retrain-every 6 --train-lookback-days 1095   # rolling 3y
 ```
 
 ```python
@@ -317,6 +319,11 @@ result.equity_curves().to_csv("ml_vs_rules_equity.csv")
 * **No leakage** — the model is trained on `bundle.before(train_end)`; the
   backtest runs on `[train_end, end]`, so the model never saw a return realised
   in the test window. Features at each rebalance are point-in-time.
+* **Walk-forward retraining (optional)** — pass `retrain_every=N` to refit the
+  model every *N* rebalances on data available at that point (expanding, or a
+  rolling window via `train_lookback_days`), so it never goes stale over a long
+  test window. Each refit uses `bundle.before(rebalance_date)`, so it stays
+  leak-free; the report shows the number of refits and the average train IC.
 * **Isolates the ML** — on every rebalance both strategies use *identical*
   style weights, client fit, risk and liquidity inputs. The only difference is
   whether `ml_alpha` enters the integrated score, so any performance gap is the

@@ -60,6 +60,7 @@ class ComparisonResult:
     test_start: pd.Timestamp
     test_end: pd.Timestamp
     ml_metrics: Dict[str, float] = field(default_factory=dict)
+    retrain_dates: List[pd.Timestamp] = field(default_factory=list)
 
     def equity_curves(self) -> pd.DataFrame:
         curves = {n: s.equity_curve for n, s in self.strategies.items()}
@@ -103,6 +104,26 @@ def _metrics(returns: pd.Series, benchmark: Optional[pd.Series] = None,
     return out
 
 
+def _train_bundle(bundle: DataBundle, as_of: pd.Timestamp,
+                  lookback_days: Optional[int]) -> DataBundle:
+    """Leak-free training bundle ending at ``as_of``.
+
+    Expanding window by default; if ``lookback_days`` is set, a rolling window
+    of that length (so the model forgets stale regimes).
+    """
+    sub = bundle.before(as_of)
+    if not lookback_days:
+        return sub
+    start = pd.Timestamp(as_of) - pd.Timedelta(days=int(lookback_days))
+    fd = sub.fundamentals.index.get_level_values(0)
+    return DataBundle(
+        prices=sub.prices.loc[sub.prices.index >= start],
+        benchmarks=sub.benchmarks.loc[sub.benchmarks.index >= start],
+        fundamentals=sub.fundamentals.loc[fd >= start],
+        meta=dict(sub.meta),
+    )
+
+
 def _segment_returns(bundle: DataBundle, weights: Dict[str, float],
                      d: pd.Timestamp, nxt: pd.Timestamp) -> pd.Series:
     if not weights:
@@ -126,27 +147,54 @@ def backtest_ml_vs_rules(
     alpha_model: Optional[object] = None,
     ml_task: str = "regression",
     ml_horizon: int = 21,
+    retrain_every: Optional[int] = None,
+    train_lookback_days: Optional[int] = None,
     portfolio_value: float = 1_000_000.0,
     benchmark_index: str = "SPX",
 ) -> ComparisonResult:
-    """Train (leak-free) then backtest the ML-driven vs rule-only engine."""
+    """Train (leak-free) then backtest the ML-driven vs rule-only engine.
+
+    ``retrain_every`` — if set, retrain the ML model every *N* rebalances
+    (walk-forward) using only data available at that rebalance, instead of a
+    single fit at ``train_end``.  ``train_lookback_days`` makes each retrain use
+    a rolling window of that length (default: expanding).  A caller-supplied
+    ``alpha_model`` is used fixed and disables retraining.
+    """
     config = config or EngineConfig()
     constraints = profile.apply_to_constraints(config.constraints)
     train_end = pd.Timestamp(train_end)
     end = bundle.dates()[-1] if end is None else pd.Timestamp(end)
 
-    # --- train the ML model strictly on pre-test data ------------------------
+    from ..ml import AlphaModel, train_alpha_model
+    from ..backtest.style_weights import recommend_style_weights
+
+    walk_forward = alpha_model is None and bool(retrain_every) and retrain_every > 0
+
+    # --- initial model (single-fit mode) trained strictly on pre-test data ---
     ml_metrics: Dict[str, float] = {}
-    if alpha_model is None:
-        from ..ml import AlphaModel, train_alpha_model
+    retrain_dates: List[pd.Timestamp] = []
+    retrain_metrics: List[Dict[str, float]] = []
+    if alpha_model is None and not walk_forward:
         trained = train_alpha_model(bundle.before(train_end), task=ml_task,
                                     horizon_days=ml_horizon)
         alpha_model = AlphaModel(trained)
         ml_metrics = dict(trained.metrics)
-    else:
+    elif alpha_model is not None:
         ml_metrics = dict(getattr(alpha_model, "metrics", {}) or {})
 
-    from ..backtest.style_weights import recommend_style_weights
+    def _maybe_retrain(d: pd.Timestamp) -> None:
+        """Walk-forward refit on data available at ``d`` (leak-free)."""
+        nonlocal alpha_model
+        tb = _train_bundle(bundle, d, train_lookback_days)
+        try:
+            trained = train_alpha_model(tb, task=ml_task, horizon_days=ml_horizon)
+        except ValueError:
+            if alpha_model is None:                       # cannot proceed yet
+                raise
+            return
+        alpha_model = AlphaModel(trained)
+        retrain_dates.append(d)
+        retrain_metrics.append(dict(trained.metrics))
 
     rdates = _rebalance_dates(bundle, train_end, end)
     strategies = {
@@ -159,6 +207,9 @@ def backtest_ml_vs_rules(
 
     for i, d in enumerate(rdates):
         nxt = rdates[i + 1] if i + 1 < len(rdates) else end
+
+        if walk_forward and (i == 0 or i % retrain_every == 0):
+            _maybe_retrain(d)
 
         # ---- inputs shared by both strategies (computed once) --------------
         base = compute_signals(bundle, profile, d)                 # no ml_alpha
@@ -204,12 +255,21 @@ def backtest_ml_vs_rules(
         strategies[name].returns = nr
         strategies[name].metrics = _metrics(nr, bench_ret, strategies[name].turnover)
 
+    # Aggregate walk-forward training metrics across all refits.
+    if retrain_metrics:
+        def _avg(key):
+            vals = [m.get(key) for m in retrain_metrics
+                    if m.get(key) is not None and np.isfinite(m.get(key))]
+            return float(np.mean(vals)) if vals else float("nan")
+        ml_metrics = {"mean_ic": _avg("mean_ic"), "ic_t_stat": _avg("ic_t_stat"),
+                      "hit_rate": _avg("hit_rate"), "n_retrains": len(retrain_metrics)}
+
     summary = pd.DataFrame({n: s.metrics for n, s in strategies.items()}).T
     summary.loc["benchmark"] = _metrics(bench_ret)
     return ComparisonResult(
         strategies=strategies, benchmark=bench_ret, summary=summary,
         train_end=train_end, test_start=test_start, test_end=end,
-        ml_metrics=ml_metrics,
+        ml_metrics=ml_metrics, retrain_dates=retrain_dates,
     )
 
 
@@ -218,11 +278,17 @@ def format_comparison(result: ComparisonResult) -> str:
     L.append("=" * 74)
     L.append(" ML-DRIVEN vs RULE-ONLY ENGINE — out-of-sample portfolio backtest")
     L.append("=" * 74)
-    L.append(f" Train window : start .. {result.train_end.date()}  (ML fit here only)")
+    if result.retrain_dates:
+        L.append(f" Training     : WALK-FORWARD, {len(result.retrain_dates)} refits "
+                 f"(first {result.retrain_dates[0].date()}, "
+                 f"last {result.retrain_dates[-1].date()})")
+    else:
+        L.append(f" Training     : single fit through {result.train_end.date()}")
     L.append(f" Test window  : {result.test_start.date()} .. {result.test_end.date()}")
     if result.ml_metrics:
         m = result.ml_metrics
-        L.append(f" ML model     : train IC {m.get('mean_ic', float('nan')):.3f} "
+        label = "avg train IC" if result.retrain_dates else "train IC"
+        L.append(f" ML model     : {label} {m.get('mean_ic', float('nan')):.3f} "
                  f"(t={m.get('ic_t_stat', float('nan')):.2f}, "
                  f"hit {m.get('hit_rate', float('nan')):.0%})")
     L.append("-" * 74)
