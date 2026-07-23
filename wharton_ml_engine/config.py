@@ -9,7 +9,7 @@ sections 8 and 11 on transparency).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +74,26 @@ class PortfolioConstraints:
 # ---------------------------------------------------------------------------
 # Transaction cost model (PRD 6.2 turnover & cost)
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class UniverseFilter:
+    """Point-in-time universe eligibility rules (PRD §4, survivorship fix).
+
+    Applied *as of each decision date* so that delisted / acquired names are
+    included while they were tradable and dropped afterward — never filtered by
+    what is listed *today*.  Security-type and liquidity floors are explicit
+    (not silent defaults) so the universe definition is auditable.
+    """
+
+    # Security types to include; excludes ADRs, preferreds, SPACs, CEFs, etc.
+    security_types: tuple = ("common",)
+    min_price: float = 5.0            # drop sub-$5 names (untradeable/penny)
+    min_adv_usd: float = 1_000_000.0  # drop names trading < $1M/day on average
+
+    def describe(self) -> str:
+        return (f"types={list(self.security_types)}, min_price=${self.min_price:.0f}, "
+                f"min_adv=${self.min_adv_usd/1e6:.1f}M")
 
 
 @dataclass
@@ -148,6 +168,13 @@ class EngineConfig:
 
     # Signal-confidence floor below which the engine trades more cautiously.
     min_signal_confidence: float = 0.35
+
+    # Strip sector-average exposure from the style scores before integration, so
+    # the book's tilt is a within-sector factor bet rather than a sector bet.
+    sector_neutral: bool = False
+
+    # Point-in-time universe eligibility (None = score every name in the bundle).
+    universe_filter: "Optional[UniverseFilter]" = None
 
     def __post_init__(self) -> None:
         self.constraints.validate()

@@ -132,6 +132,11 @@ def run_engine(
 
     # --- signal, client, risk layers -----------------------------------------
     signals = compute_signals(bundle, profile, as_of, analyst_ratings, alpha_model)
+    if config.sector_neutral:
+        from ..config import STYLES
+        from ..utils import sector_neutralize
+        cols = [c for c in STYLES if c in signals.columns]
+        signals = sector_neutralize(signals, bundle.sectors, cols)
     fit = compute_client_fit(bundle, profile, as_of)
     srisk = stock_risk_model(bundle, as_of)
     liq = liquidity_model(bundle, as_of, constraints, portfolio_value)
@@ -141,6 +146,9 @@ def run_engine(
     # --- integration & construction (with a crowding-aware second pass) -------
     scored = integrate_scores(signals, fit, srisk, liq, style_rec.weights,
                               profile, robustness)
+    if config.universe_filter is not None:
+        eligible = set(bundle.eligible_asof(as_of, config.universe_filter))
+        scored.loc[[t for t in scored.index if t not in eligible], "integrated_score"] = float("nan")
     construction = construct_portfolio(scored, bundle, constraints, liq, market_cap)
     candidate = construction.weights
 

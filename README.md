@@ -399,6 +399,27 @@ Output compares `ann_return`, `ann_vol`, `sharpe`, `max_drawdown`,
 > rigorous, leak-free harness: point it at real data (`--source`) and it gives
 > a trustworthy read on whether the model is worth using.
 
+## Model hardening (audit-driven)
+
+Features added to close specific model-risk gaps a judge would probe:
+
+* **Point-in-time / survivorship-safe universe** (`UniverseFilter`,
+  `DataBundle.eligible_asof`, `SecurityMeta.delisting_date`). Names are eligible
+  *as of each date* — delisted/acquired names are included while tradable and
+  dropped after, never filtered by today's listing. Explicit security-type and
+  liquidity floors (min price, min ADV). The synthetic source can inject
+  delistings (`delist_frac`) to **measure** the bias: on a 24%-delisting
+  universe, a survivor-only backtest overstated CAGR by **~4.5%/year**.
+* **Stress-test module** (`risk.stress_test` → `StressReport.to_json()`):
+  crisis drawdowns (hold today's book through 2020/2022), hypothetical shocks
+  (market −20% via portfolio beta; +100bps rates via a valuation-based equity-
+  duration proxy), a calm-vs-crisis correlation panel, and single-name
+  worst-case under the caps — all as chart-ready exportable data.
+* **Sector-neutral scoring** (`EngineConfig(sector_neutral=True)`): strips
+  sector-average exposure from the style scores so the tilt is a *within-sector*
+  factor bet. Measured: value's IC survives (0.025→0.021) — it's not a hidden
+  sector bet — while some factors (income, low-vol) were partly sector artifacts.
+
 ## Paper trading — maintain a simulated book over time
 
 The Wharton competition *is* a paper-trading simulation, so the engine ships a

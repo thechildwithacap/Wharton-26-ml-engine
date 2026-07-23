@@ -19,10 +19,13 @@ from .portfolio import (
     style_exposure,
 )
 from .stock import liquidity_model, stock_risk_model
+from .stress import StressReport, stress_test
 
 __all__ = [
     "stock_risk_model",
     "liquidity_model",
+    "StressReport",
+    "stress_test",
     "PortfolioRiskSummary",
     "aggregate_portfolio_risk",
     "concentration_metrics",

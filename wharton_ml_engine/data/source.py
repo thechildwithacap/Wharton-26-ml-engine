@@ -49,6 +49,11 @@ class SecurityMeta:
     sector: str
     themes: List[str] = field(default_factory=list)
     pays_dividend: bool = False
+    # Survivorship / point-in-time fields (optional; default = always-listed
+    # common stock, so existing sources are unaffected).
+    security_type: str = "common"
+    listing_date: Optional[str] = None      # ISO date; None = listed before history
+    delisting_date: Optional[str] = None    # ISO date; None = still listed
 
 
 @dataclass
@@ -106,6 +111,40 @@ class DataBundle:
     def prices_upto(self, as_of: pd.Timestamp) -> pd.DataFrame:
         as_of = pd.Timestamp(as_of)
         return self.prices.loc[self.prices.index <= as_of]
+
+    def eligible_asof(self, as_of: pd.Timestamp, univ=None) -> List[str]:
+        """Point-in-time eligible universe as of ``as_of`` (survivorship-safe).
+
+        Includes a name iff, on that date, it is (a) an allowed security type,
+        (b) already listed and not yet delisted, and (c) above the price /
+        average-dollar-volume floors.  Delisted names are therefore present up
+        to their delisting and absent after — never filtered by today's listing.
+        """
+        from ..config import UniverseFilter
+
+        as_of = pd.Timestamp(as_of)
+        univ = univ or UniverseFilter()
+        px = self.prices.loc[self.prices.index <= as_of]
+        last = px.iloc[-1] if len(px) else pd.Series(dtype=float)
+        fund = self.fundamentals_asof(as_of)
+        adv = fund["adv_usd"] if "adv_usd" in fund.columns else pd.Series(dtype=float)
+
+        out: List[str] = []
+        for t, m in self.meta.items():
+            if m.security_type not in univ.security_types:
+                continue
+            if m.listing_date is not None and pd.Timestamp(m.listing_date) > as_of:
+                continue
+            if m.delisting_date is not None and pd.Timestamp(m.delisting_date) <= as_of:
+                continue
+            p = float(last.get(t, float("nan")))
+            if not np.isfinite(p) or p < univ.min_price:
+                continue
+            a = float(adv.get(t, float("nan")))
+            if univ.min_adv_usd > 0 and (not np.isfinite(a) or a < univ.min_adv_usd):
+                continue
+            out.append(t)
+        return out
 
     def before(self, as_of: pd.Timestamp) -> "DataBundle":
         """Return a copy truncated to data on or before ``as_of``.

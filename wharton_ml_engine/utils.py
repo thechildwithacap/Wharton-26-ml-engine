@@ -100,6 +100,28 @@ def neutral_fill(s: pd.Series, value: float = 50.0) -> pd.Series:
     return s.fillna(value)
 
 
+def sector_neutralize(
+    frame: pd.DataFrame,
+    sectors: Mapping[str, str],
+    columns,
+) -> pd.DataFrame:
+    """Remove sector-average exposure from the given 0-100 score columns.
+
+    Within each sector the score is de-meaned then re-ranked cross-sectionally
+    back onto 0-100, so what survives is a stock's rank *relative to its own
+    sector* — i.e. the factor edge with the sector bet stripped out.  Returns a
+    copy; untouched columns pass through.
+    """
+    out = frame.copy()
+    sec = pd.Series({t: sectors.get(t, "Unknown") for t in frame.index})
+    for col in columns:
+        if col not in out.columns:
+            continue
+        demeaned = out[col].astype(float) - out.groupby(sec)[col].transform("mean")
+        out[col] = pct_rank(demeaned, ascending=True)
+    return out
+
+
 def clip_score(s: pd.Series) -> pd.Series:
     return s.clip(lower=0.0, upper=100.0)
 

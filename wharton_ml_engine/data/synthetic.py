@@ -60,11 +60,15 @@ class SyntheticDataSource(DataSource):
         years: float = 8.0,
         seed: int = 42,
         end: Optional[pd.Timestamp] = None,
+        delist_frac: float = 0.0,
     ) -> None:
         self.n_tickers = n_tickers
         self.years = years
         self.seed = seed
         self.end = pd.Timestamp(end) if end is not None else pd.Timestamp("2025-12-31")
+        # Fraction of names that delist mid-history (with pre-delisting distress),
+        # so survivorship bias can be reproduced and measured.
+        self.delist_frac = delist_frac
 
     # ------------------------------------------------------------------ load
     def load(self) -> DataBundle:
@@ -80,6 +84,8 @@ class SyntheticDataSource(DataSource):
         sector_rets = self._sector_factors(dates, rng)
 
         prices = self._stock_prices(dates, tickers, traits, meta, market_ret, sector_rets, rng)
+        if self.delist_frac > 0:
+            self._apply_delistings(prices, meta, dates, rng)
         benchmarks = self._benchmarks(dates, market_ret, sector_rets, prices, meta)
         fundamentals = self._fundamentals(dates, tickers, traits, rng)
 
@@ -173,6 +179,26 @@ class SyntheticDataSource(DataSource):
             start_price = float(np.exp(rng.uniform(2.5, 5.0)))  # ~$12-$150
             prices[t] = start_price * np.exp(np.cumsum(r))
         return prices
+
+    def _apply_delistings(self, prices, meta, dates, rng) -> None:
+        """Mark a fraction of names as delisting mid-history with prior distress.
+
+        Delisted names suffer a ramping drawdown into their delisting date and
+        have no price afterward — the pattern that makes survivorship bias real
+        (a survivor-only backtest never sees the crash).
+        """
+        n = len(dates)
+        for t in list(prices.columns):
+            if rng.random() >= self.delist_frac:
+                continue
+            di = int(rng.integers(int(n * 0.4), n - 5))
+            k = min(120, di)
+            distress = np.linspace(0.0, float(rng.uniform(0.4, 0.85)), k)  # up to -40..-85%
+            col = prices[t].to_numpy(dtype=float).copy()
+            col[di - k:di] = col[di - k:di] * (1.0 - distress)
+            col[di:] = np.nan                                   # delisted: no price
+            prices[t] = col
+            meta[t].delisting_date = str(pd.Timestamp(dates[di]).date())
 
     def _benchmarks(self, dates, market_ret, sector_rets, prices, meta) -> pd.DataFrame:
         cols = {}
