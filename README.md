@@ -381,6 +381,36 @@ Output compares `ann_return`, `ann_vol`, `sharpe`, `max_drawdown`,
 > rigorous, leak-free harness: point it at real data (`--source`) and it gives
 > a trustworthy read on whether the model is worth using.
 
+## Paper trading — maintain a simulated book over time
+
+The Wharton competition *is* a paper-trading simulation, so the engine ships a
+paper-trading module: a persistent virtual portfolio you advance one "trading
+day" at a time as new data arrives. It marks to market, asks the engine for a
+recommendation, applies it **only when the engine's trade logic approves**, and
+records the mark — a reproducible track record for the IPS / Final Report. It is
+decision support, not an auto-executing bot.
+
+```bash
+# start a $100k paper book, then step it (repeat as data updates)
+python paper_trade.py --source datasets/us_sample --init --capital 100000
+python paper_trade.py --source datasets/us_sample --date 2025-06-30
+python paper_trade.py --source datasets/us_sample --report
+
+# or backfill a full track record from cached history
+python paper_trade.py --source datasets/us_sample --walk monthly
+```
+
+```python
+from wharton_ml_engine.engine import PaperPortfolio, paper_trade_step, performance_summary
+pf = PaperPortfolio.new(capital=100_000)
+step = paper_trade_step(bundle, profile, pf)      # mark → engine → act → record
+print(step.summary()); print(performance_summary(pf))
+pf.save("paper_state.json")
+```
+
+State is plain JSON; positions support fractional shares; costs are charged on
+turnover; performance is tracked against the benchmark.
+
 ## Project layout
 
 ```
@@ -399,6 +429,7 @@ run_demo.py            end-to-end demonstration (--with-ml to include the model)
 train_model.py         train / evaluate / save the ML alpha model (--source for real data)
 fetch_dataset.py       download & cache a real universe from financialdatasets.ai
 backtest_compare.py    ML-driven vs rule-only engine, out-of-sample
+paper_trade.py         maintain a simulated paper-trading book over time
 tests/                 pytest suite (incl. sub-model & sub-sub-model tests)
 ```
 

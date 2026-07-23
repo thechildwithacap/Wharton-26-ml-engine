@@ -8,6 +8,12 @@ from .backtest_portfolio import (
 )
 from .construct import ConstructionResult, construct_portfolio
 from .integrate import integrate_scores
+from .paper import (
+    PaperPortfolio,
+    PaperStepResult,
+    paper_trade_step,
+    performance_summary,
+)
 from .pipeline import EngineReport, run_engine
 from .trade import TradeDecision, build_trade_list, decide_trades
 
@@ -24,4 +30,8 @@ __all__ = [
     "ComparisonResult",
     "StrategyResult",
     "format_comparison",
+    "PaperPortfolio",
+    "PaperStepResult",
+    "paper_trade_step",
+    "performance_summary",
 ]

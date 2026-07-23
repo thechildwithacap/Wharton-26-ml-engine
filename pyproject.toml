@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wharton-ml-engine"
-version = "1.6.0"
+version = "1.7.0"
 description = "Multi-model ML investment engine for the Wharton Global High School Investment Competition (internal decision-support system)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,6 +22,7 @@ wharton-engine-demo = "run_demo:main"
 wharton-engine-train = "train_model:main"
 wharton-engine-fetch = "fetch_dataset:main"
 wharton-engine-backtest = "backtest_compare:main"
+wharton-engine-paper = "paper_trade:main"
 
 [tool.setuptools]
 packages = ["wharton_ml_engine",
