@@ -136,11 +136,12 @@ def run_engine(
     srisk = stock_risk_model(bundle, as_of)
     liq = liquidity_model(bundle, as_of, constraints, portfolio_value)
     robustness = model_robustness_scores(signals)
+    market_cap = bundle.fundamentals_asof(as_of).get("market_cap")  # for benchmark tilt
 
     # --- integration & construction (with a crowding-aware second pass) -------
     scored = integrate_scores(signals, fit, srisk, liq, style_rec.weights,
                               profile, robustness)
-    construction = construct_portfolio(scored, bundle, constraints, liq)
+    construction = construct_portfolio(scored, bundle, constraints, liq, market_cap)
     candidate = construction.weights
 
     crowd = crowding_model(
@@ -151,7 +152,7 @@ def run_engine(
         scored = integrate_scores(signals, fit, srisk, liq, style_rec.weights,
                                   profile, robustness,
                                   de_risk_styles=crowd["de_risk_styles"])
-        construction = construct_portfolio(scored, bundle, constraints, liq)
+        construction = construct_portfolio(scored, bundle, constraints, liq, market_cap)
         candidate = construction.weights
 
     # --- candidate risk & checks ---------------------------------------------

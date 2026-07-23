@@ -38,6 +38,18 @@ class PortfolioConstraints:
     # Factor diversification: no single style may dominate the book.
     max_style_weight: float = 0.40
 
+    # --- construction tilt knobs (risk/return dial) --------------------------
+    # benchmark_tilt in [0, 1] interpolates the book between pure engine alpha
+    # (0 = select & weight purely on the integrated score) and the cap-weighted
+    # index (1 = select & weight purely by market cap).  Raise it when the goal
+    # is to track / beat a cap-weighted benchmark in a mega-cap-led regime;
+    # keep it at 0 for maximum factor diversification.
+    benchmark_tilt: float = 0.0
+    # concentration is the exponent on score-proportional base weights: 1.0 =
+    # linear (default), >1 concentrates into the top names (up to the position
+    # cap), <1 flattens toward equal weight.
+    concentration: float = 1.0
+
     # Turnover discipline (fraction of book traded per rebalance).
     max_turnover_per_rebalance: float = 0.35
 
@@ -55,6 +67,8 @@ class PortfolioConstraints:
         assert 0 < self.min_weight_per_stock <= self.target_max_weight_per_stock
         assert self.target_max_weight_per_stock <= self.max_weight_per_stock <= 1
         assert 0 < self.soft_max_weight_per_sector <= self.max_weight_per_sector <= 1
+        assert 0.0 <= self.benchmark_tilt <= 1.0
+        assert 0.25 <= self.concentration <= 4.0
 
 
 # ---------------------------------------------------------------------------

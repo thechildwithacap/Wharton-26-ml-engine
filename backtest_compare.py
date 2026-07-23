@@ -44,6 +44,11 @@ def main() -> None:
     ap.add_argument("--extended-ml", action="store_true",
                     help="train the ML model on the full SEC fundamental feature set "
                          "(raw ranked line items) in addition to the style scores")
+    ap.add_argument("--benchmark-tilt", type=float, default=0.0,
+                    help="0..1: dial the book from pure engine alpha (0) toward the "
+                         "cap-weighted index (1) to track/beat a benchmark")
+    ap.add_argument("--concentration", type=float, default=1.0,
+                    help="weight-concentration exponent (>1 concentrates in top names)")
     ap.add_argument("--out", default=None, help="optional dir to write equity-curve CSV")
     args = ap.parse_args()
 
@@ -67,10 +72,20 @@ def main() -> None:
               f"({'rolling ' + str(args.train_lookback_days) + 'd' if args.train_lookback_days else 'expanding'} window)\n")
 
     if args.extended_ml:
-        print("Extended ML: training on the full SEC fundamental feature set\n")
+        print("Extended ML: training on the full SEC fundamental feature set")
+    if args.benchmark_tilt or args.concentration != 1.0:
+        print(f"Construction: benchmark_tilt={args.benchmark_tilt}, "
+              f"concentration={args.concentration}")
+    print()
+
+    from wharton_ml_engine import EngineConfig
+    config = EngineConfig()
+    config.constraints.benchmark_tilt = args.benchmark_tilt
+    config.constraints.concentration = args.concentration
+    config.constraints.validate()
 
     result = backtest_ml_vs_rules(bundle, sample_profile(), train_end=train_end,
-                                  ml_horizon=args.horizon,
+                                  config=config, ml_horizon=args.horizon,
                                   retrain_every=args.retrain_every,
                                   train_lookback_days=args.train_lookback_days,
                                   extended_features=args.extended_ml)

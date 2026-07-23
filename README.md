@@ -130,6 +130,24 @@ The profile drives:
 Conservative clients automatically get tighter caps; the mandate check is a hard
 gate that can veto any candidate book.
 
+### Risk/return dial: benchmark tilt & concentration
+
+Two construction knobs (on `PortfolioConstraints`) let you trade factor
+diversification against tracking a cap-weighted index:
+
+| Knob | Range | Effect |
+|---|---|---|
+| `benchmark_tilt` | 0–1 | 0 = select & weight purely on the engine's alpha (max factor diversification); 1 = select & weight purely by market cap (index-like). Raise it to track/beat a cap-weighted benchmark in a mega-cap-led regime. |
+| `concentration` | 0.25–4 | Exponent on score-proportional weights. >1 concentrates into the top names (up to the position cap); <1 flattens toward equal weight. |
+
+```bash
+python backtest_compare.py --source datasets/us_sample --benchmark-tilt 0.7 --concentration 1.5
+```
+
+Both work *within* the hard caps — position, sector, liquidity and mandate
+limits still bind, so the tilt shifts the book toward the index without ever
+breaching the client's constraints.
+
 ---
 
 ## Free real data: provider prices + SEC EDGAR (PRD §4)

@@ -17,6 +17,7 @@ import pandas as pd
 
 from ..config import PortfolioConstraints
 from ..data.source import DataBundle
+from ..utils import clip_score, pct_rank
 
 
 @dataclass
@@ -26,11 +27,27 @@ class ConstructionResult:
     selected: List[str] = field(default_factory=list)
 
 
+def _effective_score(scored: pd.DataFrame, constraints: PortfolioConstraints,
+                     market_cap: Optional[pd.Series]) -> pd.Series:
+    """Integrated score blended toward market-cap by ``benchmark_tilt``.
+
+    tilt=0 -> pure engine score; tilt=1 -> pure size (cap-weighted index-like).
+    Ineligible names (NaN integrated score) stay NaN so they are never picked.
+    """
+    s = scored["integrated_score"]
+    tilt = constraints.benchmark_tilt
+    if tilt <= 0 or market_cap is None:
+        return s
+    size = clip_score(pct_rank(market_cap.reindex(s.index), ascending=True))
+    eff = (1.0 - tilt) * s + tilt * size.reindex(s.index)
+    return eff.where(s.notna())          # keep eligibility mask
+
+
 def _select_candidates(scored: pd.DataFrame, sectors: Dict[str, str],
-                       constraints: PortfolioConstraints) -> List[str]:
+                       constraints: PortfolioConstraints,
+                       eff: pd.Series) -> List[str]:
     """Pick up to ``max_holdings`` names, diversifying by sector as we go."""
-    ranked = scored[scored["integrated_score"].notna()].sort_values(
-        "integrated_score", ascending=False)
+    ranked = eff.dropna().sort_values(ascending=False)
     # Soft per-sector count cap keeps any one sector from dominating selection.
     max_per_sector = max(2, math.ceil(constraints.max_weight_per_sector *
                                       constraints.max_holdings) + 1)
@@ -102,21 +119,23 @@ def construct_portfolio(
     bundle: DataBundle,
     constraints: PortfolioConstraints,
     liquidity: Optional[pd.DataFrame] = None,
+    market_cap: Optional[pd.Series] = None,
 ) -> ConstructionResult:
     log: List[str] = []
     sectors = bundle.sectors
 
-    picks = _select_candidates(scored, sectors, constraints)
+    eff = _effective_score(scored, constraints, market_cap)
+    picks = _select_candidates(scored, sectors, constraints, eff)
     if len(picks) < constraints.min_holdings:
         log.append(f"only {len(picks)} eligible names for min {constraints.min_holdings}; "
                    "portfolio will be smaller than target")
     if not picks:
         return ConstructionResult(weights={}, log=["no eligible candidates"], selected=[])
 
-    scores = scored.loc[picks, "integrated_score"]
+    scores = eff.loc[picks]
     # Score-proportional base weights above a floor so the tilt is meaningful
-    # but not winner-take-all.
-    base = (scores - scores.min() + 5.0)
+    # but not winner-take-all; ``concentration`` (>1) sharpens toward the top.
+    base = (scores - scores.min() + 5.0) ** constraints.concentration
     w = base / base.sum()
 
     caps = _cap_vector(picks, liquidity, constraints)

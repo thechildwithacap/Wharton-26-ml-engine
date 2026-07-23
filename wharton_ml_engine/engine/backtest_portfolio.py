@@ -220,6 +220,7 @@ def backtest_ml_vs_rules(
         liq = liquidity_model(bundle, d, constraints, portfolio_value)
         robustness = model_robustness_scores(base)
         style = recommend_style_weights(bundle, profile, d, template_results=None).weights
+        market_cap = bundle.fundamentals_asof(d).get("market_cap")
 
         variants = {"rule_only": base}
         ml_sig = base.copy()
@@ -228,7 +229,7 @@ def backtest_ml_vs_rules(
 
         for name, sig in variants.items():
             scored = integrate_scores(sig, fit, srisk, liq, style, profile, robustness)
-            w = construct_portfolio(scored, bundle, constraints, liq).weights
+            w = construct_portfolio(scored, bundle, constraints, liq, market_cap).weights
             strategies[name].weights_history[d] = w
             strategies[name].turnover.append(
                 turnover_and_cost(prev_w[name], w, config.costs).turnover)
