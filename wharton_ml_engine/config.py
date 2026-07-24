@@ -116,6 +116,10 @@ class CostModel:
 
 # Canonical style names used consistently across signal, backtest and engine
 # layers.  Keep this list authoritative — other modules import it.
+# Styles blended into the alpha score.  Income was dropped from the alpha blend
+# after significance testing showed its IC is indistinguishable from zero
+# (t=+0.19); the client's income need is handled separately in Client Fit (via
+# raw dividend yield), so the mandate is unaffected.
 STYLES: List[str] = [
     "value",
     "quality",
@@ -123,7 +127,6 @@ STYLES: List[str] = [
     "garp",
     "momentum",
     "low_vol",
-    "income",
 ]
 
 # Sectors used by the synthetic universe and sector-cap logic.  A real run

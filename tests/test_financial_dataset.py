@@ -137,7 +137,8 @@ def test_train_on_financial_dataset(fin_bundle):
     assert panel["date"].nunique() > 20
     trained = train_alpha_model(fin_bundle, task="regression", panel=panel, alpha=10.0)
     assert "mean_ic" in trained.metrics
-    assert len(trained.coefficients()) == 11
+    from wharton_ml_engine.ml import ML_FEATURES
+    assert len(trained.coefficients()) == len(ML_FEATURES)
 
 
 def test_missing_api_key_raises(monkeypatch):

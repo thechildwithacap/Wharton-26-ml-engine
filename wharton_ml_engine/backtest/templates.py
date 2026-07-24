@@ -46,7 +46,6 @@ def style_score_panel(bundle: DataBundle, as_of: pd.Timestamp) -> pd.DataFrame:
     out["quality"] = fnd["quality"]
     out["growth"] = fnd["growth"]
     out["garp"] = fnd["garp"]
-    out["income"] = fnd["income"]
     out["momentum"] = pf["momentum"].reindex(fund.index)
     out["low_vol"] = pf["low_vol"].reindex(fund.index)
     return out[STYLES]

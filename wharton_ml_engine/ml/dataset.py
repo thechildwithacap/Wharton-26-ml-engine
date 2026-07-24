@@ -25,18 +25,23 @@ from ..utils import clip_score, pct_rank
 
 
 # Profile-independent features the model learns to weight.
+# Income dropped from the alpha feature set (no significant IC, t=+0.19); it
+# stays in Client Fit for the income mandate, not as a forecasting feature.
 ML_FEATURES: List[str] = [
-    "value", "quality", "growth", "garp", "income",
+    "value", "quality", "growth", "garp",
     "momentum", "low_vol", "size", "factor", "macro_tilt", "analyst",
 ]
 
 # Raw fundamental fields fed to the model directly (as cross-sectional ranks),
 # so it can learn from *all* the underlying SEC data — not only the hand-built
 # composite style scores.  Prefixed ``f_`` to keep them distinct.
+# Raw fundamental features for the extended model.  Dividend yield / payout are
+# excluded — like the income style, they are income-mandate inputs (Client Fit),
+# not forecasting features.
 RAW_FUNDAMENTAL_FIELDS: List[str] = [
     "pe", "pb", "ev_ebit", "fcf_yield", "roe", "roic", "gross_margin",
     "earnings_vol", "debt_equity", "interest_coverage", "revenue_growth",
-    "eps_growth", "growth_stability", "dividend_yield", "payout_ratio",
+    "eps_growth", "growth_stability",
 ]
 RAW_FUNDAMENTAL_FEATURES: List[str] = [f"f_{c}" for c in RAW_FUNDAMENTAL_FIELDS]
 EXTENDED_FEATURES: List[str] = ML_FEATURES + RAW_FUNDAMENTAL_FEATURES
@@ -65,7 +70,7 @@ def feature_frame(bundle: DataBundle, as_of: pd.Timestamp,
     analyst = analyst_overlay_model(bundle, as_of, ratings=None)
 
     out = pd.DataFrame(index=fund.index)
-    for col in ["value", "quality", "growth", "garp", "income"]:
+    for col in ["value", "quality", "growth", "garp"]:
         out[col] = fnd[col]
     for col in ["momentum", "low_vol", "size", "factor"]:
         out[col] = pf[col].reindex(fund.index)
