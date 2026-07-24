@@ -417,8 +417,25 @@ Features added to close specific model-risk gaps a judge would probe:
   worst-case under the caps — all as chart-ready exportable data.
 * **Sector-neutral scoring** (`EngineConfig(sector_neutral=True)`): strips
   sector-average exposure from the style scores so the tilt is a *within-sector*
-  factor bet. Measured: value's IC survives (0.025→0.021) — it's not a hidden
-  sector bet — while some factors (income, low-vol) were partly sector artifacts.
+  factor bet.
+* **Statistical rigor (t-stats).** Under significance testing on the 126-name ×
+  ~71-month sample, **only size is significant** (sector-neutral IC +0.035,
+  t=+3.06); value is marginal (t=+1.50); the rest are noise. Income's apparent
+  sign-flip was noise (t=+0.19) → kept for the income mandate, not as alpha. The
+  factor-decay-by-horizon advantage did **not** survive (paired 126d−21d
+  differences within noise) → the 21-day horizon is kept, deliberately.
+* **Point-in-time S&P 500 universe** (`data.sp500`): real index removal history
+  (incl. 2023 bank failures SIVB/FRC/SBNY) via the same `eligible_asof`
+  framework. Finding: the **free price feed is itself survivor-biased** (404s
+  delisted tickers), so a fully-real bias backtest needs CRSP; the modeled S&P
+  bias is *modest* (removals mix failures and premium acquisitions that offset),
+  unlike a broad delisting-heavy universe (synthetic +4.5%/yr). Both kept.
+* **Replacement classifier** (`engine.classify_holdings`): out-of-favor (hold)
+  vs thesis-broken (replace) — a turnover-discipline rule, honestly reported as
+  *not* a return-alpha source (~coin-flip separation in backtest).
+* **Regime-aware sizing** (`EngineConfig(regime_aware_sizing=True)`): flatter
+  conviction + tighter cap for contrarian regimes, more concentration for
+  quality-compounder trends.
 
 ## Paper trading — maintain a simulated book over time
 

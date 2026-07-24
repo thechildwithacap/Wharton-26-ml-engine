@@ -3,6 +3,12 @@
 from .csv_source import CSVDataSource, load_bundle, save_bundle
 from .financial_dataset import FinancialDatasetSource
 from .sec_edgar import build_sec_fundamentals
+from .sp500 import (
+    SP500_REMOVALS,
+    SurvivorshipEstimate,
+    estimate_survivorship_bias,
+    sp500_pit_metadata,
+)
 from .source import (
     FUNDAMENTAL_FIELDS,
     DataBundle,
@@ -21,6 +27,10 @@ __all__ = [
     "FinancialDatasetSource",
     "WebDataSource",
     "build_sec_fundamentals",
+    "SP500_REMOVALS",
+    "SurvivorshipEstimate",
+    "estimate_survivorship_bias",
+    "sp500_pit_metadata",
     "CSVDataSource",
     "save_bundle",
     "load_bundle",
