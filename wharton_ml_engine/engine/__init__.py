@@ -6,8 +6,17 @@ from .backtest_portfolio import (
     backtest_ml_vs_rules,
     format_comparison,
 )
-from .construct import ConstructionResult, construct_portfolio
+from .construct import (
+    ConstructionResult,
+    construct_portfolio,
+    regime_sizing_posture,
+)
 from .integrate import integrate_scores
+from .replacement import (
+    HoldingClassification,
+    classify_holdings,
+    replacement_candidates,
+)
 from .paper import (
     PaperPortfolio,
     PaperStepResult,
@@ -34,4 +43,8 @@ __all__ = [
     "PaperStepResult",
     "paper_trade_step",
     "performance_summary",
+    "regime_sizing_posture",
+    "HoldingClassification",
+    "classify_holdings",
+    "replacement_candidates",
 ]

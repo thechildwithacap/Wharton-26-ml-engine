@@ -176,5 +176,9 @@ class EngineConfig:
     # Point-in-time universe eligibility (None = score every name in the bundle).
     universe_filter: "Optional[UniverseFilter]" = None
 
+    # Adjust the conviction/sizing curve by regime (flatter for contrarian
+    # setups, more concentrated for quality-compounder trends).
+    regime_aware_sizing: bool = False
+
     def __post_init__(self) -> None:
         self.constraints.validate()

@@ -114,6 +114,29 @@ def _apply_sector_caps(w: pd.Series, sectors: Dict[str, str], caps: pd.Series,
     return _apply_position_caps(w, caps)
 
 
+def regime_sizing_posture(trend: str, vol_state: str, base_concentration: float,
+                          base_cap: float) -> Dict[str, object]:
+    """Map a regime to a conviction/sizing posture (Task C).
+
+    Rationale: **contrarian** setups (bear trend or high-vol) are lower-consensus
+    and higher-variance, so we *flatten* the conviction curve (lower
+    concentration) and *tighten* the single-name cap — spread the uncertainty.
+    **Quality-compounder** setups (bull + low-vol) are high-consensus trends
+    that reward conviction, so we allow more concentration.  Sideways/normal
+    keeps the base curve.
+    """
+    if trend == "bull" and vol_state == "low_vol":
+        return {"posture": "compounder",
+                "concentration": max(base_concentration, 1.3),
+                "max_weight": base_cap}
+    if trend == "bear" or vol_state == "high_vol":
+        return {"posture": "contrarian",
+                "concentration": min(base_concentration, 0.7),
+                "max_weight": min(base_cap, 0.06)}
+    return {"posture": "balanced", "concentration": base_concentration,
+            "max_weight": base_cap}
+
+
 def construct_portfolio(
     scored: pd.DataFrame,
     bundle: DataBundle,

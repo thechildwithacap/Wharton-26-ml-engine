@@ -130,6 +130,16 @@ def run_engine(
     style_rec = recommend_style_weights(bundle, profile, as_of, templates)
     stability = signal_stability(bundle, as_of, style_rec.weights)
 
+    # Regime-aware sizing: flatten conviction for contrarian regimes, concentrate
+    # for quality-compounder trends (Task C).
+    if config.regime_aware_sizing:
+        from .construct import regime_sizing_posture
+        posture = regime_sizing_posture(
+            style_rec.regime.trend, style_rec.regime.vol_state,
+            constraints.concentration, constraints.max_weight_per_stock)
+        constraints.concentration = posture["concentration"]
+        constraints.max_weight_per_stock = posture["max_weight"]
+
     # --- signal, client, risk layers -----------------------------------------
     signals = compute_signals(bundle, profile, as_of, analyst_ratings, alpha_model)
     if config.sector_neutral:

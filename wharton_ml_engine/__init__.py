@@ -53,7 +53,7 @@ from .engine import (
 from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 
 __all__ = [
     "__version__",
