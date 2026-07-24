@@ -21,13 +21,13 @@ from ..utils import weighted_blend
 # Canonical strategy templates (PRD 6.3).  Weights need not sum to 1 — they are
 # renormalised at use.
 STRATEGY_TEMPLATES: Dict[str, Dict[str, float]] = {
-    "deep_value":        {"value": 0.6, "quality": 0.2, "income": 0.1, "low_vol": 0.1},
+    "deep_value":        {"value": 0.67, "quality": 0.22, "low_vol": 0.11},
     "quality_compounder":{"quality": 0.55, "growth": 0.2, "value": 0.15, "low_vol": 0.1},
     "garp_blend":        {"garp": 0.4, "growth": 0.25, "quality": 0.2, "value": 0.15},
     "momentum_tilt":     {"momentum": 0.55, "growth": 0.2, "quality": 0.15, "low_vol": 0.1},
-    "defensive_low_vol": {"low_vol": 0.45, "quality": 0.3, "income": 0.15, "value": 0.1},
-    "hybrid_multifactor":{"value": 0.2, "quality": 0.25, "growth": 0.15,
-                          "momentum": 0.2, "low_vol": 0.1, "income": 0.1},
+    "defensive_low_vol": {"low_vol": 0.53, "quality": 0.35, "value": 0.12},
+    "hybrid_multifactor":{"value": 0.22, "quality": 0.28, "growth": 0.17,
+                          "momentum": 0.22, "low_vol": 0.11},
 }
 
 
