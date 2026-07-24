@@ -1,5 +1,6 @@
 """Data ingestion layer (PRD section 4)."""
 
+from .crsp import CRSPClient, CRSPDataSource, WRDSClient
 from .csv_source import CSVDataSource, load_bundle, save_bundle
 from .financial_dataset import FinancialDatasetSource
 from .sec_edgar import build_sec_fundamentals
@@ -25,6 +26,9 @@ __all__ = [
     "SecurityMeta",
     "SyntheticDataSource",
     "FinancialDatasetSource",
+    "CRSPDataSource",
+    "CRSPClient",
+    "WRDSClient",
     "WebDataSource",
     "build_sec_fundamentals",
     "SP500_REMOVALS",

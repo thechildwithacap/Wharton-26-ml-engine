@@ -2,9 +2,12 @@
 
 from .engine import (
     BacktestResult,
+    MeasuredSurvivorshipBias,
     backtest_all_templates,
     backtest_template,
+    backtest_template_pit,
     benchmark_returns,
+    measure_survivorship_bias,
     templates_summary,
 )
 from .regime import RegimeState, classify_regime
@@ -24,7 +27,10 @@ __all__ = [
     "normalise_weights",
     "BacktestResult",
     "backtest_template",
+    "backtest_template_pit",
     "backtest_all_templates",
+    "measure_survivorship_bias",
+    "MeasuredSurvivorshipBias",
     "benchmark_returns",
     "templates_summary",
     "RegimeState",

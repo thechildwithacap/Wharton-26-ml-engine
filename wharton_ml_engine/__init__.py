@@ -37,11 +37,13 @@ from .client import (
 )
 from .config import CostModel, EngineConfig, PortfolioConstraints
 from .data import (
+    CRSPDataSource,
     CSVDataSource,
     DataBundle,
     DataSource,
     FinancialDatasetSource,
     SyntheticDataSource,
+    WRDSClient,
 )
 from .engine import (
     ComparisonResult,
@@ -53,12 +55,14 @@ from .engine import (
 from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.12.0"
+__version__ = "1.13.0"
 
 __all__ = [
     "__version__",
     "SyntheticDataSource",
     "FinancialDatasetSource",
+    "CRSPDataSource",
+    "WRDSClient",
     "CSVDataSource",
     "DataSource",
     "DataBundle",
