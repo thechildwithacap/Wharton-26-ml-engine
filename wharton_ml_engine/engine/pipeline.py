@@ -35,6 +35,7 @@ from ..risk.portfolio import (
     concentration_alerts,
     crowding_model,
 )
+from ..risk.montecarlo import MonteCarloResult, simulate_from_bundle
 from ..risk.stock import liquidity_model, stock_risk_model
 from ..signals import compute_signals
 from .construct import ConstructionResult, construct_portfolio
@@ -74,6 +75,7 @@ class EngineReport:
     templates: Optional[Dict[str, BacktestResult]] = None
     templates_summary: Optional[pd.DataFrame] = field(default=None)
     ml_metrics: Optional[Dict[str, float]] = None
+    monte_carlo: Optional[MonteCarloResult] = None
 
     # ---- convenience views --------------------------------------------------
     def ranked_table(self, top: int = 30) -> pd.DataFrame:
@@ -106,6 +108,11 @@ def run_engine(
     run_backtest: bool = True,
     backtest_lookback_days: int = 1000,
     portfolio_value: float = 1_000_000.0,
+    run_monte_carlo: bool = True,
+    mc_sims: int = 10000,
+    mc_method: str = "block_bootstrap",
+    mc_horizon_days: Optional[int] = None,
+    mc_annual_drift: Optional[float] = None,
 ) -> EngineReport:
     config = config or EngineConfig()
     constraints = profile.apply_to_constraints(config.constraints)
@@ -186,6 +193,20 @@ def run_engine(
         stability.confidence, curr_risk, cand_risk,
     )
 
+    # --- Monte Carlo: forward outcome distribution of the recommended book ----
+    monte_carlo: Optional[MonteCarloResult] = None
+    if run_monte_carlo and candidate:
+        horizon = mc_horizon_days or config.ml_horizon_days
+        try:
+            monte_carlo = simulate_from_bundle(
+                bundle, candidate, as_of=as_of, horizon_days=horizon,
+                n_sims=mc_sims, method=mc_method, annual_drift=mc_annual_drift,
+                trading_days_per_year=config.trading_days_per_year,
+                seed=config.seed,
+            )
+        except ValueError:
+            monte_carlo = None      # too little price history to simulate
+
     report = EngineReport(
         as_of=as_of, profile=profile, config=config, regime=style_rec.regime,
         style_recommendation=style_rec, signal_confidence=stability.confidence,
@@ -196,6 +217,7 @@ def run_engine(
         turnover=turnover, mandate=mandate, data_quality=dq, decision=decision,
         templates=templates, templates_summary=tsummary,
         ml_metrics=(dict(alpha_model.metrics) if alpha_model is not None else None),
+        monte_carlo=monte_carlo,
     )
     report._sector_map = bundle.sectors
     return report

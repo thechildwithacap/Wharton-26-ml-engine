@@ -88,6 +88,7 @@ def decision_summary_dict(report: EngineReport) -> Dict[str, object]:
         "net_score_improvement": round(d.net_score_improvement, 3),
         "checks": d.checks,
         "reasons": d.reasons,
+        "monte_carlo": report.monte_carlo.to_json() if report.monte_carlo else None,
     }
 
 
@@ -124,6 +125,15 @@ def format_summary(report: EngineReport) -> str:
              f"beta {report.candidate_risk.beta:.2f}  |  "
              f"top-5 {_fmt_pct(report.candidate_risk.top5_weight)}  |  "
              f"eff-N {report.candidate_risk.effective_n:.1f}")
+    mc = report.monte_carlo
+    if mc is not None:
+        p = mc.percentiles
+        L.append(f"   Monte Carlo ({mc.n_sims:,}× {mc.horizon_days}d, {mc.method}):")
+        L.append(f"     expected {_fmt_pct(mc.median_return)}  |  "
+                 f"P(loss) {mc.prob_loss:.0%}  |  "
+                 f"5–95% [{_fmt_pct(p['p05'])}, {_fmt_pct(p['p95'])}]")
+        L.append(f"     VaR95 {_fmt_pct(mc.var_95)}  |  CVaR95 {_fmt_pct(mc.cvar_95)}  |  "
+                 f"median max-DD {_fmt_pct(mc.max_drawdown_median)}")
     if report.concentration_alerts:
         L.append("   concentration alerts: " + "; ".join(report.concentration_alerts))
     if report.crowding.get("crowding_flags"):

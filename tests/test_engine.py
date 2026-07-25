@@ -52,6 +52,26 @@ def test_engine_mandate_passes(bundle, profile, as_of):
     assert report.mandate.passed, report.mandate.violations
 
 
+def test_engine_attaches_monte_carlo(bundle, profile, as_of):
+    from wharton_ml_engine.reporting.export import decision_summary_dict, format_summary
+    report = run_engine(bundle, profile, as_of=as_of, run_backtest=False, mc_sims=2000)
+    mc = report.monte_carlo
+    assert mc is not None
+    assert mc.n_sims == 2000 and mc.horizon_days == report.config.ml_horizon_days
+    assert 0.0 <= mc.prob_loss <= 1.0
+    assert mc.percentiles["p05"] < mc.percentiles["p95"]
+    # exported into both the JSON summary and the console text
+    d = decision_summary_dict(report)
+    assert d["monte_carlo"] is not None and "var_95" in d["monte_carlo"]
+    assert "Monte Carlo" in format_summary(report)
+
+
+def test_monte_carlo_can_be_disabled(bundle, profile, as_of):
+    report = run_engine(bundle, profile, as_of=as_of, run_backtest=False,
+                        run_monte_carlo=False)
+    assert report.monte_carlo is None
+
+
 def test_initial_build_rebalances(bundle, profile, as_of):
     report = run_engine(bundle, profile, as_of=as_of, run_backtest=False)
     assert report.decision.action == "rebalance"
