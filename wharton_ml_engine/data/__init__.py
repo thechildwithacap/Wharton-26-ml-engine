@@ -2,6 +2,13 @@
 
 from .crsp import CRSPClient, CRSPDataSource, WRDSClient
 from .csv_source import CSVDataSource, load_bundle, save_bundle
+from .indices import (
+    INDEX_REGISTRY,
+    IndexInfo,
+    available_universe,
+    benchmark_for,
+    list_indices,
+)
 from .financial_dataset import FinancialDatasetSource
 from .sec_edgar import build_sec_fundamentals
 from .sp500 import (
@@ -38,4 +45,9 @@ __all__ = [
     "CSVDataSource",
     "save_bundle",
     "load_bundle",
+    "INDEX_REGISTRY",
+    "IndexInfo",
+    "available_universe",
+    "benchmark_for",
+    "list_indices",
 ]

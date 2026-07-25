@@ -281,6 +281,36 @@ front-end, one set per decision date:
 
 ---
 
+## Web UI (React) + API server
+
+A React dashboard drives the engine interactively and lets you switch the
+**index / universe** — S&P 500, Nasdaq-100, Dow 30, PHLX Semiconductor, or any
+GICS sector — not just the S&P 500. Pick an index, client objective and risk
+tolerance, and it runs the full pipeline and renders the decision, recommended
+portfolio, factor scorecard heatmap, portfolio risk / sector exposure, and the
+**Monte Carlo outcome fan** (expected return, P(loss), VaR/CVaR, drawdown).
+
+The backend is **standard-library only** (`http.server`, no Flask/FastAPI), so
+it adds no dependencies to the engine.
+
+```bash
+# 1) build the UI once (Node 18+)
+npm --prefix ui install
+npm --prefix ui run build
+
+# 2) start the engine API + static UI (trains the alpha model on boot)
+python -m wharton_ml_engine.api.server --port 8000
+#   -> open http://127.0.0.1:8000
+
+# live UI development (hot reload) — proxies /api to the server above:
+npm --prefix ui run dev        # http://127.0.0.1:5173
+```
+
+API endpoints (JSON): `GET /api/indices`, `GET /api/report?index=NDX&objective=growth&risk=4&drift=0.08`,
+`GET /api/health`. The `index` universes come from `wharton_ml_engine.data.indices`.
+
+---
+
 ## Backtesting & regime adaptation (PRD §6.3, §9)
 
 Six strategy templates (deep value, quality compounder, GARP blend, momentum
