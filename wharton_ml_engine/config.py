@@ -183,5 +183,11 @@ class EngineConfig:
     # setups, more concentrated for quality-compounder trends).
     regime_aware_sizing: bool = False
 
+    # Forward-return horizon (trading days) the alpha model is trained to predict.
+    # Lengthened from the original 21d: value / capital-discipline / macro factors
+    # express over quarters, not weeks, and the factor audit confirmed IC (and
+    # significance) rise with horizon.  ~126d ≈ two quarters.
+    ml_horizon_days: int = 126
+
     def __post_init__(self) -> None:
         self.constraints.validate()

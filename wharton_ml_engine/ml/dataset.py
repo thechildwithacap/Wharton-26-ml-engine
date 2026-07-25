@@ -20,6 +20,7 @@ import pandas as pd
 from ..data.source import DataBundle
 from ..signals.fundamental import fundamental_scores
 from ..signals.hybrid import analyst_overlay_model
+from ..signals.macro import macro_factor_model
 from ..signals.quant import macro_sensitivity_model, price_factor_model
 from ..utils import clip_score, pct_rank
 
@@ -29,7 +30,7 @@ from ..utils import clip_score, pct_rank
 # stays in Client Fit for the income mandate, not as a forecasting feature.
 ML_FEATURES: List[str] = [
     "value", "quality", "growth", "garp", "discipline",
-    "momentum", "low_vol", "size", "factor", "macro_tilt", "analyst",
+    "momentum", "low_vol", "size", "factor", "macro_tilt", "macro_fit", "analyst",
 ]
 
 # Raw fundamental fields fed to the model directly (as cross-sectional ranks),
@@ -67,6 +68,7 @@ def feature_frame(bundle: DataBundle, as_of: pd.Timestamp,
     fnd = fundamental_scores(fund)
     pf = price_factor_model(bundle, as_of)
     macro = macro_sensitivity_model(bundle, as_of)
+    macro_f = macro_factor_model(bundle, as_of)
     analyst = analyst_overlay_model(bundle, as_of, ratings=None)
 
     out = pd.DataFrame(index=fund.index)
@@ -75,6 +77,7 @@ def feature_frame(bundle: DataBundle, as_of: pd.Timestamp,
     for col in ["momentum", "low_vol", "size", "factor"]:
         out[col] = pf[col].reindex(fund.index)
     out["macro_tilt"] = macro["macro_tilt"].reindex(fund.index)
+    out["macro_fit"] = macro_f["macro_fit"].reindex(fund.index)
     out["analyst"] = analyst.reindex(fund.index)
 
     if extended:

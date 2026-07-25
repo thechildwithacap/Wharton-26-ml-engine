@@ -146,7 +146,7 @@ def backtest_ml_vs_rules(
     config: Optional[EngineConfig] = None,
     alpha_model: Optional[object] = None,
     ml_task: str = "regression",
-    ml_horizon: int = 21,
+    ml_horizon: Optional[int] = None,
     retrain_every: Optional[int] = None,
     train_lookback_days: Optional[int] = None,
     extended_features: bool = False,
@@ -162,6 +162,8 @@ def backtest_ml_vs_rules(
     ``alpha_model`` is used fixed and disables retraining.
     """
     config = config or EngineConfig()
+    if ml_horizon is None:
+        ml_horizon = config.ml_horizon_days
     constraints = profile.apply_to_constraints(config.constraints)
     train_end = pd.Timestamp(train_end)
     end = bundle.dates()[-1] if end is None else pd.Timestamp(end)

@@ -18,6 +18,11 @@ from .portfolio import (
     sector_exposure,
     style_exposure,
 )
+from .montecarlo import (
+    MonteCarloResult,
+    simulate_from_bundle,
+    simulate_portfolio,
+)
 from .stock import liquidity_model, stock_risk_model
 from .stress import StressReport, stress_test
 
@@ -40,4 +45,7 @@ __all__ = [
     "data_quality_report",
     "MandateCheck",
     "mandate_check",
+    "MonteCarloResult",
+    "simulate_portfolio",
+    "simulate_from_bundle",
 ]

@@ -16,6 +16,7 @@ from .fundamental import (
     value_model,
 )
 from .hybrid import analyst_overlay_model, hybrid_alpha_model, theme_tilt_model
+from .macro import MacroRegime, macro_factor_model, macro_regime
 from .quant import macro_sensitivity_model, price_factor_model, quant_scores
 
 __all__ = [
@@ -27,6 +28,9 @@ __all__ = [
     "price_factor_model",
     "macro_sensitivity_model",
     "quant_scores",
+    "MacroRegime",
+    "macro_regime",
+    "macro_factor_model",
     "analyst_overlay_model",
     "hybrid_alpha_model",
     "theme_tilt_model",
