@@ -135,12 +135,58 @@ def income_model(fund: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def capital_discipline_model(fund: pd.DataFrame) -> pd.DataFrame:
+    """Capital-Discipline Score from financing & investment behaviour (PRD 6.1.1).
+
+    Three well-documented anomalies that are **independent of valuation and
+    profitability** — management's use of capital, not the P&L:
+
+    * **Net issuance** — firms that buy back stock (negative issuance) beat those
+      that dilute; lower is better.
+    * **Asset growth** — aggressive asset expansion tends to precede weak returns
+      (the investment anomaly); lower is better.
+    * **Accruals** — earnings backed by cash outperform accrual-heavy earnings
+      (Sloan); lower is better.
+
+    Missing inputs fall back to a neutral rank, so sources lacking these fields
+    (older cached bundles) score ~50 rather than dropping out.
+    """
+    def _rank_lower(col: str):
+        # Usable only if the field is present *and* has data; an all-NaN column
+        # (a source that doesn't supply it) falls back to the neutral rank.
+        if col in fund.columns and fund[col].notna().any():
+            return score_lower_is_better(fund[col])
+        return None
+
+    buyback = _rank_lower("net_issuance")
+    conservative = _rank_lower("asset_growth")
+    earnings_quality = _rank_lower("accruals")
+
+    comps, weights = {}, {}
+    for key, series, w in [("buyback", buyback, 0.4),
+                           ("conservative", conservative, 0.35),
+                           ("earnings_quality", earnings_quality, 0.25)]:
+        if series is not None:
+            comps[key] = series
+            weights[key] = w
+    discipline = weighted_blend(comps, weights) if comps \
+        else pd.Series(50.0, index=fund.index)
+
+    out = pd.DataFrame(index=fund.index)
+    out["buyback"] = clip_score(buyback) if buyback is not None else 50.0
+    out["conservative_investment"] = clip_score(conservative) if conservative is not None else 50.0
+    out["earnings_quality"] = clip_score(earnings_quality) if earnings_quality is not None else 50.0
+    out["discipline"] = clip_score(discipline)
+    return out
+
+
 def fundamental_scores(fund: pd.DataFrame) -> pd.DataFrame:
     """Assemble the headline fundamental style scores into one frame."""
     val = value_model(fund)
     qual = quality_model(fund)
     gg = growth_garp_model(fund)
     inc = income_model(fund)
+    disc = capital_discipline_model(fund)
 
     out = pd.DataFrame(index=fund.index)
     out["value"] = val["value"]
@@ -149,4 +195,5 @@ def fundamental_scores(fund: pd.DataFrame) -> pd.DataFrame:
     out["growth"] = gg["growth"]
     out["garp"] = gg["garp"]
     out["income"] = inc["income"]
+    out["discipline"] = disc["discipline"]
     return out

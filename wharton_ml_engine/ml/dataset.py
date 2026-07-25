@@ -28,7 +28,7 @@ from ..utils import clip_score, pct_rank
 # Income dropped from the alpha feature set (no significant IC, t=+0.19); it
 # stays in Client Fit for the income mandate, not as a forecasting feature.
 ML_FEATURES: List[str] = [
-    "value", "quality", "growth", "garp",
+    "value", "quality", "growth", "garp", "discipline",
     "momentum", "low_vol", "size", "factor", "macro_tilt", "analyst",
 ]
 
@@ -41,7 +41,7 @@ ML_FEATURES: List[str] = [
 RAW_FUNDAMENTAL_FIELDS: List[str] = [
     "pe", "pb", "ev_ebit", "fcf_yield", "roe", "roic", "gross_margin",
     "earnings_vol", "debt_equity", "interest_coverage", "revenue_growth",
-    "eps_growth", "growth_stability",
+    "eps_growth", "growth_stability", "accruals", "net_issuance", "asset_growth",
 ]
 RAW_FUNDAMENTAL_FEATURES: List[str] = [f"f_{c}" for c in RAW_FUNDAMENTAL_FIELDS]
 EXTENDED_FEATURES: List[str] = ML_FEATURES + RAW_FUNDAMENTAL_FEATURES
@@ -70,7 +70,7 @@ def feature_frame(bundle: DataBundle, as_of: pd.Timestamp,
     analyst = analyst_overlay_model(bundle, as_of, ratings=None)
 
     out = pd.DataFrame(index=fund.index)
-    for col in ["value", "quality", "growth", "garp"]:
+    for col in ["value", "quality", "growth", "garp", "discipline"]:
         out[col] = fnd[col]
     for col in ["momentum", "low_vol", "size", "factor"]:
         out[col] = pf[col].reindex(fund.index)

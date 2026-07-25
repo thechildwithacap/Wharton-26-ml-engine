@@ -34,6 +34,10 @@ FUNDAMENTAL_FIELDS: List[str] = [
     "revenue_growth",   # yoy
     "eps_growth",       # yoy
     "growth_stability", # 0-1, consistency of growth
+    # -- capital-discipline / financing signals (SEC-derived, independent of the
+    #    valuation & profitability blocks above) --
+    "net_issuance",     # yoy change in shares outstanding (<0 = buybacks, good)
+    "asset_growth",     # yoy change in total assets (high = over-investing, bad)
     "dividend_yield",
     "payout_ratio",     # dividends / earnings
     "adv_usd",          # average daily traded value, USD

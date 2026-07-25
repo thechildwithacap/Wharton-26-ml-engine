@@ -28,6 +28,7 @@ _DEF = {
     "accruals": 0.03, "roe": 0.15, "roic": 0.12, "gross_margin": 0.45,
     "earnings_vol": 0.2, "debt_equity": 0.8, "interest_coverage": 8.0,
     "revenue_growth": 0.08, "eps_growth": 0.10, "growth_stability": 0.6,
+    "net_issuance": 0.0, "asset_growth": 0.05,
     "dividend_yield": 0.0, "payout_ratio": 0.0, "adv_usd": 5e7,
 }
 

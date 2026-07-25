@@ -168,6 +168,20 @@ def _annual_asof(df: pd.DataFrame, date: pd.Timestamp):
     return last, prev
 
 
+def _yoy_instant(df: pd.DataFrame, date: pd.Timestamp) -> float:
+    """Year-over-year change of a balance-sheet series, point-in-time.
+
+    Compares the latest value visible at ``date`` with the value visible ~one
+    year earlier.  Returns NaN when either point is unavailable or the base is
+    non-positive.  Used for net share issuance and asset growth.
+    """
+    cur = _asof(df, date)
+    prev = _asof(df, date - pd.Timedelta(days=365))
+    if not (np.isfinite(cur) and np.isfinite(prev)) or prev <= 0:
+        return float("nan")
+    return cur / prev - 1.0
+
+
 def build_sec_fundamentals(
     tickers: List[str],
     prices: pd.DataFrame,
@@ -228,9 +242,15 @@ def build_sec_fundamentals(
         equity = _instant(gaap, ["StockholdersEquity",
                                  "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"])
         liab = _instant(gaap, ["Liabilities"])
+        assets = _instant(gaap, ["Assets"])
         cash = _instant(gaap, ["CashAndCashEquivalentsAtCarryingValue"])
         ltdebt = _instant(gaap, ["LongTermDebtNoncurrent", "LongTermDebt"])
         shares = _instant(dei, ["EntityCommonStockSharesOutstanding"], unit_hint="shares")
+        # Weighted diluted share count (income-statement) is a cleaner issuance
+        # series than the cover-page count when available.
+        shares_wtd = _annual(gaap, ["WeightedAverageNumberOfDilutedSharesOutstanding",
+                                    "WeightedAverageNumberOfSharesOutstandingBasic"],
+                             unit_hint="shares")
 
         px = prices[t] if t in prices.columns else None
         if px is None:
@@ -254,6 +274,7 @@ def build_sec_fundamentals(
             int_l, _ = _annual_asof(interest, m)
             eq = _asof(equity, m)
             lb = _asof(liab, m)
+            ast = _asof(assets, m)
             csh = _asof(cash, m)
             ltd = _asof(ltdebt, m)
             sh = _asof(shares, m)
@@ -280,6 +301,18 @@ def build_sec_fundamentals(
             eg = (eps_l / eps_p - 1.0) if (np.isfinite(eps_l) and np.isfinite(eps_p) and eps_p > 0) else float("nan")
             rec["eps_growth"] = eg
             rec["payout_ratio"] = (div_l / ni_l) if (np.isfinite(div_l) and np.isfinite(ni_l) and ni_l > 0) else 0.0
+            # -- capital-discipline / financing signals (independent of the above) --
+            # Sloan accruals: earnings not backed by cash, scaled by assets.
+            if np.isfinite(ni_l) and np.isfinite(ocf_l) and np.isfinite(ast) and ast > 0:
+                rec["accruals"] = (ni_l - ocf_l) / ast
+            # Net share issuance: prefer weighted diluted count YoY, else cover-page.
+            wtd_l, wtd_p = _annual_asof(shares_wtd, m)
+            if np.isfinite(wtd_l) and np.isfinite(wtd_p) and wtd_p > 0:
+                rec["net_issuance"] = wtd_l / wtd_p - 1.0
+            else:
+                rec["net_issuance"] = _yoy_instant(shares, m)
+            # Asset growth: the investment/over-expansion anomaly.
+            rec["asset_growth"] = _yoy_instant(assets, m)
             if np.isfinite(eg):
                 eps_growth_hist.append(eg)
             if len(eps_growth_hist) >= 3:

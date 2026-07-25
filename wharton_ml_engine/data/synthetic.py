@@ -257,6 +257,10 @@ class SyntheticDataSource(DataSource):
         pays = inc > 0.35
         dividend_yield = float(np.clip((0.005 + 0.05 * inc - 0.02 * g), 0.0, 0.08)) if pays else 0.0
         payout_ratio = float(np.clip(0.2 + 0.6 * inc, 0.0, 0.95)) if pays else 0.0
+        # Capital discipline: high-quality, value-minded firms buy back stock and
+        # grow assets slowly; aggressive growth names dilute and over-invest.
+        net_issuance = float(np.clip(-0.03 * q - 0.02 * v + 0.06 * g + eps_noise(0.02), -0.10, 0.20))
+        asset_growth = float(np.clip(0.02 + 0.30 * g - 0.05 * q + eps_noise(0.03), -0.10, 0.60))
         adv_usd = float(market_cap * rng.uniform(0.001, 0.006))
 
         return {
@@ -275,6 +279,8 @@ class SyntheticDataSource(DataSource):
             "revenue_growth": revenue_growth,
             "eps_growth": eps_growth,
             "growth_stability": growth_stability,
+            "net_issuance": net_issuance,
+            "asset_growth": asset_growth,
             "dividend_yield": dividend_yield,
             "payout_ratio": payout_ratio,
             "adv_usd": adv_usd,
