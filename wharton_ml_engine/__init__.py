@@ -35,6 +35,7 @@ from .client import (
     sample_answers,
     sample_profile,
 )
+from .competition import SCORING_METRICS, CompetitionRules
 from .config import CostModel, EngineConfig, PortfolioConstraints
 from .data import (
     CRSPDataSource,
@@ -55,7 +56,7 @@ from .engine import (
 from .ml import AlphaModel, TrainedModel, train_alpha_model
 from .signals import compute_signals
 
-__version__ = "1.17.0"
+__version__ = "1.18.0"
 
 __all__ = [
     "__version__",
@@ -75,6 +76,8 @@ __all__ = [
     "EngineConfig",
     "PortfolioConstraints",
     "CostModel",
+    "CompetitionRules",
+    "SCORING_METRICS",
     "run_engine",
     "EngineReport",
     "train_alpha_model",
