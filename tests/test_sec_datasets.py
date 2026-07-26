@@ -136,3 +136,42 @@ def test_discipline_factor_ranks_correctly(sec_panel):
 
 def test_discipline_in_ml_features():
     assert "discipline" in ML_FEATURES
+
+
+# --------------------------------------------------------- split adjustment
+def test_split_adjustment_factors():
+    """Reported share counts must be restated onto the latest (split) basis.
+
+    Regression guard for a real bug: split-adjusted prices multiplied by
+    as-reported share counts understated NVDA's mid-2021 market cap as ~$12B
+    instead of ~$500B (its later 4:1 and 10:1 splits = 40x), which corrupted
+    market cap, P/E, P/B and manufactured a spurious size effect.
+    """
+    from wharton_ml_engine.data.sec_edgar import split_adjustment_factors
+
+    shares = pd.DataFrame({
+        "filed": pd.to_datetime(["2020-02-01", "2021-02-01",   # pre-splits
+                                 "2021-08-01",                  # after 4:1
+                                 "2024-08-01"]),                # after 10:1
+        "val": [600e6, 620e6, 2_480e6, 24_600e6],
+    })
+    adj = split_adjustment_factors(shares)
+    f = adj["factor"].tolist()
+    assert f[-1] == pytest.approx(1.0)              # latest basis is the anchor
+    assert f[0] == pytest.approx(40.0, rel=0.05)    # 4:1 then 10:1 => 40x
+    assert f[1] == pytest.approx(40.0, rel=0.05)
+    assert f[2] == pytest.approx(10.0, rel=0.05)    # only the 10:1 remains
+    # Restated counts are all on the same (latest) basis.
+    restated = adj["val"] * adj["factor"]
+    assert restated.max() / restated.min() < 1.3    # no 40x artefact left
+
+
+def test_ordinary_issuance_is_not_treated_as_a_split():
+    from wharton_ml_engine.data.sec_edgar import split_adjustment_factors
+
+    shares = pd.DataFrame({
+        "filed": pd.to_datetime(["2020-02-01", "2021-02-01", "2022-02-01"]),
+        "val": [1_000e6, 1_020e6, 990e6],           # +2% issuance, -3% buyback
+    })
+    adj = split_adjustment_factors(shares)
+    assert adj["factor"].tolist() == pytest.approx([1.0, 1.0, 1.0])

@@ -168,6 +168,76 @@ def _annual_asof(df: pd.DataFrame, date: pd.Timestamp):
     return last, prev
 
 
+def split_adjustment_factors(shares: pd.DataFrame,
+                             jump_lo: float = 1.45,
+                             jump_hi: float = 0.69) -> pd.DataFrame:
+    """Put a reported share-count series onto the *latest* (split-adjusted) basis.
+
+    Prices from any adjusted feed are restated for every later split, but the
+    share counts and EPS a company *files* are on the basis in force at the time.
+    Multiplying a split-adjusted price by an as-reported share count understates
+    market cap by the cumulative split factor (NVDA mid-2021: $12B instead of
+    ~$500B, a 40x error from its 4:1 and 10:1 splits).  P/E and P/B inherit the
+    same error, which then corrupts the value and size factors.
+
+    A split shows up as a step change in the reported count that ordinary
+    issuance cannot produce.  For each filing we return ``factor`` = the product
+    of every split occurring *after* it, so ``shares * factor`` and
+    ``eps / factor`` are stated on today's basis, consistent with the prices.
+
+    Returns ``shares`` with an added ``factor`` column (1.0 at the latest date).
+    """
+    out = shares.copy()
+    if out.empty:
+        out["factor"] = []
+        return out
+    out = out.sort_values("filed").reset_index(drop=True)
+    vals = out["val"].to_numpy(dtype=float)
+
+    # Per-step split ratio: a jump >= ~1.45x (or <= ~0.69x for a reverse split)
+    # is a split, not issuance/buyback.  Round to the nearest sensible ratio.
+    ratios = np.ones(len(vals))
+    for i in range(1, len(vals)):
+        if not (np.isfinite(vals[i]) and np.isfinite(vals[i - 1])) or vals[i - 1] <= 0:
+            continue
+        r = vals[i] / vals[i - 1]
+        if r >= jump_lo or (0 < r <= jump_hi):
+            ratios[i] = r
+
+    # factor(t) = product of split ratios strictly after t (1.0 at the end).
+    factor = np.ones(len(vals))
+    acc = 1.0
+    for i in range(len(vals) - 1, -1, -1):
+        factor[i] = acc
+        acc *= ratios[i]
+    out["factor"] = factor
+    return out
+
+
+def _asof_split_factor(shares_adj: pd.DataFrame, date: pd.Timestamp) -> float:
+    if shares_adj.empty or "factor" not in shares_adj.columns:
+        return 1.0
+    vis = shares_adj[shares_adj["filed"] <= date]
+    return float(vis["factor"].iloc[-1]) if not vis.empty else 1.0
+
+
+def _adjust_per_share(annual: pd.DataFrame, shares_adj: pd.DataFrame) -> pd.DataFrame:
+    """Restate an annual *per-share* series (EPS) onto the latest split basis.
+
+    Each fiscal year's figure is divided by the split factor in force **at its
+    own filing date**, so a split occurring between two fiscal years no longer
+    corrupts the year-over-year growth ratio.
+    """
+    if annual.empty:
+        return annual
+    out = annual.copy()
+    out["val"] = [
+        v / _asof_split_factor(shares_adj, f) if np.isfinite(v) else v
+        for v, f in zip(out["val"].to_numpy(dtype=float), out["filed"])
+    ]
+    return out
+
+
 def _yoy_instant(df: pd.DataFrame, date: pd.Timestamp) -> float:
     """Year-over-year change of a balance-sheet series, point-in-time.
 
@@ -246,6 +316,11 @@ def build_sec_fundamentals(
         cash = _instant(gaap, ["CashAndCashEquivalentsAtCarryingValue"])
         ltdebt = _instant(gaap, ["LongTermDebtNoncurrent", "LongTermDebt"])
         shares = _instant(dei, ["EntityCommonStockSharesOutstanding"], unit_hint="shares")
+        # Restate share counts onto the latest (split-adjusted) basis so they are
+        # consistent with the split-adjusted price series, and restate EPS (a
+        # per-share figure) the same way so P/E and EPS growth stay correct.
+        shares = split_adjustment_factors(shares)
+        eps = _adjust_per_share(eps, shares)
         # Weighted diluted share count (income-statement) is a cleaner issuance
         # series than the cover-page count when available.
         shares_wtd = _annual(gaap, ["WeightedAverageNumberOfDilutedSharesOutstanding",
@@ -278,6 +353,11 @@ def build_sec_fundamentals(
             csh = _asof(cash, m)
             ltd = _asof(ltdebt, m)
             sh = _asof(shares, m)
+            # Split factor in force at this date brings as-reported shares onto
+            # the price series' split-adjusted basis (EPS was already restated).
+            sf = _asof_split_factor(shares, m)
+            if np.isfinite(sh):
+                sh = sh * sf
 
             mktcap = p * sh if np.isfinite(sh) else float("nan")
             rec = {f: float("nan") for f in FUNDAMENTAL_FIELDS}

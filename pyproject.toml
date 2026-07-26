@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wharton-ml-engine"
-version = "1.19.0"
+version = "1.20.0"
 description = "Multi-model ML investment engine for the Wharton Global High School Investment Competition (internal decision-support system)."
 readme = "README.md"
 requires-python = ">=3.10"

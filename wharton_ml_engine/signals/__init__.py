@@ -18,6 +18,7 @@ from .fundamental import (
 )
 from .hybrid import analyst_overlay_model, hybrid_alpha_model, theme_tilt_model
 from .macro import MacroRegime, macro_factor_model, macro_regime
+from .piotroski import F_TESTS, piotroski_f_score
 from .quant import macro_sensitivity_model, price_factor_model, quant_scores
 
 __all__ = [
@@ -33,6 +34,8 @@ __all__ = [
     "MacroRegime",
     "macro_regime",
     "macro_factor_model",
+    "piotroski_f_score",
+    "F_TESTS",
     "analyst_overlay_model",
     "hybrid_alpha_model",
     "theme_tilt_model",
@@ -60,12 +63,18 @@ def compute_signals(
 
     fund = bundle.fundamentals_asof(as_of)
     fundamentals = fundamental_scores(fund)
+    # Piotroski F-score needs a ~1-year-prior snapshot for its YoY tests; both
+    # frames are read as-of, so no look-ahead.
+    prior = bundle.fundamentals_asof(as_of - pd.Timedelta(days=365))
+    fscore = piotroski_f_score(fund, prior if not prior.empty else None)
     quant = quant_scores(bundle, as_of)
     analyst = analyst_overlay_model(bundle, as_of, analyst_ratings)
     theme = theme_tilt_model(bundle, profile, as_of)
     hybrid = hybrid_alpha_model(fundamentals, analyst, quant)
 
     out = fundamentals.join(quant, how="outer")
+    for col in ("piotroski", "f_score_adj", "f_strong", "f_weak"):
+        out[col] = fscore[col].reindex(out.index)
     out["analyst"] = analyst
     out["theme_fit"] = theme
     out["hybrid_alpha"] = hybrid
