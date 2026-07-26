@@ -12,6 +12,7 @@ All scores are 0-100 cross-sectional ranks; higher = more attractive.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from ..utils import (
@@ -20,6 +21,55 @@ from ..utils import (
     score_lower_is_better,
     weighted_blend,
 )
+
+# Graham's ceiling: a defensive value stock should have P/E x P/B <= 22.5
+# (equivalently P/E<=15 and P/B<=1.5).  The Graham Number is
+# sqrt(22.5 x EPS x BVPS); since EPS=price/PE and BVPS=price/PB, the ratio of
+# price to the Graham Number reduces to sqrt(PE x PB / 22.5) — computable from
+# the P/E and P/B we already have, with no extra data.
+GRAHAM_KAPPA = 22.5
+
+
+def intrinsic_value_model(fund: pd.DataFrame) -> pd.DataFrame:
+    """Absolute intrinsic-value / margin-of-safety signals (Graham + FCF).
+
+    Value investing (per Graham) is buying below *intrinsic value* with a
+    **margin of safety** — an absolute discount, not merely "cheaper than peers".
+    This estimates that discount two independent ways and blends them:
+
+    * **Graham margin** = ``1 - price/GrahamNumber`` = ``1 - sqrt(PE*PB/22.5)``.
+      Positive means the price sits below Graham's asset-and-earnings fair value
+      (e.g. 0.34 = trading 34% below it).
+    * **Earnings-power yield** = free-cash-flow yield, the cash-based value check.
+
+    ``graham_pass`` is Graham's classic defensive screen (PE<=15 and PB<=1.5).
+    ``intrinsic`` is the 0-100 cross-sectional score (higher = deeper discount).
+    """
+    pe = pd.to_numeric(fund.get("pe"), errors="coerce")
+    pb = pd.to_numeric(fund.get("pb"), errors="coerce")
+    fcf = pd.to_numeric(fund.get("fcf_yield"), errors="coerce")
+
+    prod = pe * pb
+    valid = (pe > 0) & (pb > 0) & prod.notna()
+    graham_ratio = pd.Series(np.sqrt((prod / GRAHAM_KAPPA).where(valid)), index=fund.index)
+    # Absolute margin of safety vs the Graham Number, clipped to a sane band.
+    mos = (1.0 - graham_ratio).clip(lower=-2.0, upper=1.0)
+
+    graham_pass = (pe > 0) & (pe <= 15.0) & (pb > 0) & (pb <= 1.5)
+
+    # Blend the asset/earnings margin with the cash-based earnings-power yield.
+    intrinsic = weighted_blend(
+        {"graham": score_higher_is_better(mos),
+         "earnings_power": score_higher_is_better(fcf)},
+        {"graham": 0.6, "earnings_power": 0.4},
+    )
+
+    out = pd.DataFrame(index=fund.index)
+    out["graham_ratio"] = graham_ratio
+    out["margin_of_safety_pct"] = mos        # absolute discount to intrinsic value
+    out["graham_pass"] = graham_pass.fillna(False)
+    out["intrinsic"] = clip_score(intrinsic)
+    return out
 
 
 def value_model(fund: pd.DataFrame) -> pd.DataFrame:
@@ -50,13 +100,19 @@ def value_model(fund: pd.DataFrame) -> pd.DataFrame:
         {"valuation": valuation, "balance_sheet": balance_sheet, "cash_flow": cash_flow},
         {"valuation": 0.55, "balance_sheet": 0.2, "cash_flow": 0.25},
     )
+    iv = intrinsic_value_model(fund)
+
     out = pd.DataFrame(index=fund.index)
     out["valuation"] = clip_score(valuation)
     out["balance_sheet"] = clip_score(balance_sheet)
     out["cash_flow"] = clip_score(cash_flow)
     out["value"] = clip_score(value)
-    # Margin of safety: cheap AND financially sound (not a value trap).
-    out["margin_of_safety"] = (valuation >= 70.0) & (balance_sheet >= 50.0)
+    out["intrinsic"] = iv["intrinsic"]
+    out["margin_of_safety_pct"] = iv["margin_of_safety_pct"]
+    out["graham_pass"] = iv["graham_pass"]
+    # Margin of safety: cheap (relative or below Graham fair value) AND
+    # financially sound (not a value trap).
+    out["margin_of_safety"] = ((valuation >= 70.0) | iv["graham_pass"]) & (balance_sheet >= 50.0)
     return out
 
 
@@ -190,7 +246,10 @@ def fundamental_scores(fund: pd.DataFrame) -> pd.DataFrame:
 
     out = pd.DataFrame(index=fund.index)
     out["value"] = val["value"]
+    out["intrinsic"] = val["intrinsic"]
     out["margin_of_safety"] = val["margin_of_safety"]
+    out["margin_of_safety_pct"] = val["margin_of_safety_pct"]
+    out["graham_pass"] = val["graham_pass"]
     out["quality"] = qual["quality"]
     out["growth"] = gg["growth"]
     out["garp"] = gg["garp"]

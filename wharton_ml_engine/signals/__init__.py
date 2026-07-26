@@ -12,6 +12,7 @@ from .fundamental import (
     fundamental_scores,
     growth_garp_model,
     income_model,
+    intrinsic_value_model,
     quality_model,
     value_model,
 )
@@ -21,6 +22,7 @@ from .quant import macro_sensitivity_model, price_factor_model, quant_scores
 
 __all__ = [
     "value_model",
+    "intrinsic_value_model",
     "quality_model",
     "growth_garp_model",
     "income_model",

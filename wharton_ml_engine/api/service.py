@@ -24,7 +24,7 @@ from ..risk.portfolio import sector_exposure
 
 # Factor columns to surface for the per-holding heatmap (order = display order).
 _FACTOR_COLS = [
-    "value", "quality", "growth", "garp", "discipline", "momentum",
+    "value", "intrinsic", "quality", "growth", "garp", "discipline", "momentum",
     "low_vol", "size", "factor", "macro_tilt", "macro_fit", "analyst",
 ]
 
