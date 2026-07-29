@@ -2,6 +2,7 @@
 
 from .crsp import CRSPClient, CRSPDataSource, WRDSClient
 from .csv_source import CSVDataSource, load_bundle, save_bundle
+from .merge import merge_bundles
 from .indices import (
     INDEX_REGISTRY,
     IndexInfo,
@@ -50,4 +51,5 @@ __all__ = [
     "available_universe",
     "benchmark_for",
     "list_indices",
+    "merge_bundles",
 ]

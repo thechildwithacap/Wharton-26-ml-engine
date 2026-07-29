@@ -48,6 +48,8 @@ def main() -> None:
     ap.add_argument("--provider", default="twelvedata",
                     choices=["twelvedata", "fmp", "financialdatasets"],
                     help="data provider (default: twelvedata, free prices + SEC fundamentals)")
+    ap.add_argument("--rpm", type=int, default=8,
+                    help="provider requests/minute cap (TwelveData free = 8)")
     ap.add_argument("--price-key", default=None,
                     help="provider API key (or set PRICE_API_KEY env)")
     args = ap.parse_args()
@@ -68,7 +70,8 @@ def main() -> None:
         print("  prices from provider, fundamentals from SEC EDGAR (free) ...")
         src = WebDataSource(tickers=tickers, start=start.isoformat(),
                             end=end.isoformat(), price_provider=args.provider,
-                            price_api_key=key)
+                            price_api_key=key, requests_per_minute=args.rpm,
+                            verbose=True)
     bundle = src.load()
     print(f"  prices:       {bundle.prices.shape[0]} days x {bundle.prices.shape[1]} tickers")
     print(f"  benchmarks:   {list(bundle.benchmarks.columns)}")
