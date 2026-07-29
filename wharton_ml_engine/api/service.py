@@ -28,7 +28,8 @@ _FACTOR_COLS = [
     "low_vol", "size", "factor", "macro_tilt", "macro_fit", "analyst",
 ]
 
-_DATASET_CANDIDATES = ["datasets/us_sample_sec", "datasets/us_sample"]
+_DATASET_CANDIDATES = ["datasets/us_wide", "datasets/us_sample_sec",
+                       "datasets/us_sample"]
 
 
 def _clean(x):
