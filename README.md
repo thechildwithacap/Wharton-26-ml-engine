@@ -12,6 +12,11 @@ Wharton Investment Simulator (WInS).
 > itself. Every number is reproducible from stored code or documented formulas.
 > Outputs are probabilistic and risk-aware — there are no guaranteed returns.
 
+📄 **[docs/PRD.md](docs/PRD.md)** is the living product requirements
+document — current status of every layer, honest empirical findings (including
+two data bugs found and fixed), and the prioritized roadmap for turning this
+into the strongest possible competition entry once real rules are known.
+
 ---
 
 ## Why this design
