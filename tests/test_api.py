@@ -34,6 +34,11 @@ def service(dataset_dir):
     return EngineService(dataset_dir=dataset_dir, train_model=False)
 
 
+@pytest.fixture(scope="module")
+def service_with_model(dataset_dir):
+    return EngineService(dataset_dir=dataset_dir, train_model=True)
+
+
 def test_index_registry_intersects_available_names():
     # With a universe that contains real index names, membership resolves.
     tickers = ["AAPL", "MSFT", "NVDA", "JPM", "XOM", "ZZZZ"]
@@ -83,3 +88,41 @@ def test_objective_changes_portfolio(service):
     # Different mandates should not produce identical books.
     assert {h["ticker"] for h in growth["holdings"]} != {h["ticker"] for h in income["holdings"]} \
         or growth["style_weights"] != income["style_weights"]
+
+
+def test_no_model_means_no_ml_view(service):
+    r = service.report(index_id="SPX", objective="balanced", risk_tolerance=3, mc_sims=500)
+    assert r["ml_view"] is None
+    assert "ml_score" not in r["holdings"][0]
+    assert "ml_reason" not in r["holdings"][0]
+
+
+def test_trained_model_produces_ml_view(service_with_model):
+    r = service_with_model.report(index_id="SPX", objective="balanced", risk_tolerance=3,
+                                  mc_sims=500)
+    assert r["ml_view"] is not None
+    mv = r["ml_view"]
+    assert 0.0 <= mv["confidence"] <= 1.0
+    assert mv["gated_off"] == (mv["confidence"] <= 0.05)
+    assert "research_metrics" in mv and "known_limitations" in mv
+    assert isinstance(mv["proxy_features"], list)
+    # every holding carries its own ml_score/ml_reason
+    for h in r["holdings"]:
+        assert "ml_score" in h and "ml_reason" in h
+        assert isinstance(h["ml_reason"], str) and len(h["ml_reason"]) > 0
+
+
+def test_ml_view_is_json_serialisable(service_with_model):
+    r = service_with_model.report(index_id="SPX", objective="growth", risk_tolerance=4,
+                                  mc_sims=500)
+    s = json.dumps(r)
+    assert '"NaN"' not in s and "Infinity" not in s
+
+
+def test_ml_view_reflects_gate_when_weak(service_with_model):
+    r = service_with_model.report(index_id="SPX", objective="balanced", risk_tolerance=3,
+                                  mc_sims=500)
+    mv = r["ml_view"]
+    if mv["gated_off"]:
+        # A gated-off model must show every holding at the neutral score.
+        assert all(h["ml_score"] == pytest.approx(50.0) for h in r["holdings"])

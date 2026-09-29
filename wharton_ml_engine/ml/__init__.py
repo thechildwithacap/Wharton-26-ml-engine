@@ -46,7 +46,7 @@ from .validation import (
     log_experiment,
     newey_west_t,
 )
-from .view import MLView, load_ml_view
+from .view import MLView, build_ml_view, load_ml_view
 
 __all__ = [
     "ML_FEATURES",
@@ -94,5 +94,6 @@ __all__ = [
     "write_model_card",
     # integration (W6, partial)
     "MLView",
+    "build_ml_view",
     "load_ml_view",
 ]

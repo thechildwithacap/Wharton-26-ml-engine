@@ -53,12 +53,15 @@ class MLView:
         }
 
 
-def load_ml_view(model_path: str, bundle: DataBundle,
-                 as_of: Optional[pd.Timestamp] = None,
-                 model_id: Optional[str] = None,
-                 registry_family: Optional[str] = None,
-                 raw_fundamentals: Optional[pd.DataFrame] = None) -> MLView:
-    """Load a saved model and build its full :class:`MLView` for ``as_of``.
+def build_ml_view(alpha_model: AlphaModel, bundle: DataBundle,
+                  as_of: Optional[pd.Timestamp] = None,
+                  model_id: str = "model",
+                  registry_family: Optional[str] = None,
+                  raw_fundamentals: Optional[pd.DataFrame] = None) -> MLView:
+    """Build the full :class:`MLView` for ``as_of`` from an already-loaded
+    :class:`AlphaModel` — the entry point for a caller that trains or loads its
+    model once and reuses it across requests (e.g. the API service), so it
+    never round-trips through disk just to get a view.
 
     ``registry_family``, if given, is used to look up how many variants this
     model's family has logged in the experiment registry (see
@@ -66,18 +69,23 @@ def load_ml_view(model_path: str, bundle: DataBundle,
     without it, confidence is computed with ``n_trials=1`` (no multiple-testing
     penalty), which is only appropriate for a model that wasn't compared
     against alternatives.
+
+    Computed over ``bundle``'s **full** universe (never pre-restricted to a
+    subset of tickers) so that percentile ranks and "top X%" language stay
+    honest — a caller that only wants a handful of tickers' reasons (e.g. the
+    API trimming its response to the recommended holdings) should select from
+    the returned ``MLView.reasons``/``.score`` afterward, not ask this function
+    to compute over a smaller universe.
     """
-    am = AlphaModel.load(model_path)
     if as_of is None:
         as_of = bundle.dates()[-1]
     as_of = pd.Timestamp(as_of)
-    model_id = model_id or model_path
 
     n_trials = count_trials(registry_family) if registry_family else 1
-    confidence = am.confidence(n_trials=n_trials)
-    gated = am.score(bundle, as_of, gate=True, n_trials=n_trials)
-    raw = am.score(bundle, as_of, gate=False)
-    exp = explain(am, bundle, as_of, model_id=model_id)
+    confidence = alpha_model.confidence(n_trials=n_trials)
+    gated = alpha_model.score(bundle, as_of, gate=True, n_trials=n_trials)
+    raw = alpha_model.score(bundle, as_of, gate=False)
+    exp = explain(alpha_model, bundle, as_of, model_id=model_id)
     fund = raw_fundamentals
     if fund is None:
         try:
@@ -85,8 +93,22 @@ def load_ml_view(model_path: str, bundle: DataBundle,
         except Exception:
             fund = None
     reasons = narrate(exp, confidence, raw_fundamentals=fund)
-    card = build_model_card(am, model_id=model_id, n_trials=n_trials)
+    card = build_model_card(alpha_model, model_id=model_id, n_trials=n_trials)
 
     return MLView(as_of=as_of, model_id=model_id, confidence=confidence,
                  score=gated, raw_score=raw, explanation=exp, reasons=reasons,
                  card=card)
+
+
+def load_ml_view(model_path: str, bundle: DataBundle,
+                 as_of: Optional[pd.Timestamp] = None,
+                 model_id: Optional[str] = None,
+                 registry_family: Optional[str] = None,
+                 raw_fundamentals: Optional[pd.DataFrame] = None) -> MLView:
+    """Load a saved model from ``model_path`` and build its :class:`MLView` —
+    thin wrapper over :func:`build_ml_view` for a caller that only has a path
+    (e.g. a one-off CLI run) rather than an already-loaded model in memory."""
+    am = AlphaModel.load(model_path)
+    return build_ml_view(am, bundle, as_of=as_of, model_id=model_id or model_path,
+                         registry_family=registry_family,
+                         raw_fundamentals=raw_fundamentals)

@@ -95,11 +95,32 @@ class EngineService:
         report = run_engine(
             sub, profile, config=self.config, alpha_model=self.alpha_model,
             run_backtest=False, mc_sims=mc_sims, mc_annual_drift=mc_annual_drift)
-        return report_to_dict(report, index_id, sub)
+        ml_view = self._ml_view(sub, report.as_of)
+        return report_to_dict(report, index_id, sub, ml_view=ml_view)
+
+    def _ml_view(self, sub, as_of):
+        """Build the ML explanation view for this request's universe, or None
+        if there's no trained model (the UI degrades gracefully either way)."""
+        if self.alpha_model is None:
+            return None
+        try:
+            from ..ml import build_ml_view
+            return build_ml_view(self.alpha_model, sub, as_of=as_of,
+                                 model_id=os.path.basename(self.dataset_dir))
+        except Exception:
+            return None
 
 
-def report_to_dict(report, index_id: str, bundle: DataBundle) -> Dict[str, object]:
-    """Serialise an :class:`EngineReport` to a JSON-safe dict for the UI."""
+def report_to_dict(report, index_id: str, bundle: DataBundle,
+                   ml_view=None) -> Dict[str, object]:
+    """Serialise an :class:`EngineReport` to a JSON-safe dict for the UI.
+
+    ``ml_view`` (an :class:`~wharton_ml_engine.ml.view.MLView`, when a model is
+    trained) is computed over the *full* universe so its percentile ranks stay
+    honest, but only the recommended holdings' scores/reasons are attached to
+    the payload — dumping all ~300 universe names' reasons on every request
+    would bloat the response for no UI benefit.
+    """
     weights = report.candidate_weights
     scored = report.scored
     signals = report.signals
@@ -120,6 +141,9 @@ def report_to_dict(report, index_id: str, bundle: DataBundle) -> Dict[str, objec
             "factors": {c: _clean(signals[c].get(t)) for c in _FACTOR_COLS
                         if c in signals.columns},
         }
+        if ml_view is not None:
+            row["ml_score"] = _clean(ml_view.score.get(t))
+            row["ml_reason"] = ml_view.reasons.get(t)
         holdings.append(row)
 
     reg = report.regime
@@ -156,4 +180,22 @@ def report_to_dict(report, index_id: str, bundle: DataBundle) -> Dict[str, objec
         "holdings": holdings,
         "monte_carlo": mc,
         "factor_columns": [c for c in _FACTOR_COLS if c in signals.columns],
+        "ml_view": _ml_view_summary(ml_view),
+    }
+
+
+def _ml_view_summary(ml_view) -> Optional[Dict[str, object]]:
+    """Compact, universe-independent summary of the ML model's own evidence —
+    the per-holding score/reason already live on each holdings row; this is
+    the "how much should you trust this at all" block for the risk panel."""
+    if ml_view is None:
+        return None
+    return {
+        "model_id": ml_view.model_id,
+        "confidence": _clean(ml_view.confidence),
+        "gated_off": ml_view.confidence <= 0.05,
+        "research_metrics": {k: _clean(v) for k, v in ml_view.card.research_metrics.items()},
+        "proxy_features": list(ml_view.card.proxy_features),
+        "known_limitations": list(ml_view.card.known_limitations),
+        "holdout": dict(ml_view.card.holdout),
     }
