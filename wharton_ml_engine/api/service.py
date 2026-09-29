@@ -23,9 +23,18 @@ from ..engine import run_engine
 from ..risk.portfolio import sector_exposure
 
 # Factor columns to surface for the per-holding heatmap (order = display order).
+# "analyst" is deliberately excluded: EngineService never supplies real ratings
+# to run_engine (there's no ratings source wired into the API), so it would
+# always be signals/hybrid.py's "deterministic placeholder from fundamentals"
+# (its own docstring's words) — a proxy re-derived from roic/accruals/gross
+# margin, which are already shown honestly as value/quality. Presenting it
+# alongside real factor scores would look like independent information it
+# isn't. It stays a real ML feature internally (registered with
+# is_proxy=True, flagged in ml_view.proxy_features / known_limitations) —
+# only the misleading general-scorecard presentation is removed.
 _FACTOR_COLS = [
     "value", "intrinsic", "quality", "growth", "garp", "discipline", "momentum",
-    "low_vol", "size", "factor", "macro_tilt", "macro_fit", "analyst",
+    "low_vol", "size", "factor", "macro_tilt", "macro_fit",
 ]
 
 _DATASET_CANDIDATES = ["datasets/us_wide", "datasets/us_sample_sec",

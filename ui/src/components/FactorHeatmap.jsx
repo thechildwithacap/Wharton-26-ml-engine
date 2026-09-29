@@ -4,7 +4,7 @@ import { num, scoreColor } from '../format.js'
 const LABEL = {
   value: 'Value', intrinsic: 'Intrinsic', quality: 'Quality', growth: 'Growth', garp: 'GARP',
   discipline: 'Discip.', momentum: 'Mom.', low_vol: 'LowVol', size: 'Size',
-  factor: 'Factor', macro_tilt: 'MacTilt', macro_fit: 'MacFit', analyst: 'Analyst',
+  factor: 'Factor', macro_tilt: 'MacTilt', macro_fit: 'MacFit',
 }
 
 // Holdings × factor-score heatmap (0-100, red→amber→green).
