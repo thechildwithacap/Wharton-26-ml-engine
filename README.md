@@ -17,6 +17,12 @@ document — current status of every layer, honest empirical findings (including
 two data bugs found and fixed), and the prioritized roadmap for turning this
 into the strongest possible competition entry once real rules are known.
 
+📄 **[docs/PRD_v3_ML.md](docs/PRD_v3_ML.md)** is the ML-layer deep dive:
+a feature registry, Newey-West/multiple-testing-corrected validation with a
+locked holdout and experiment registry, an evidence gate on the ML blend
+weight, and full interpretability (exact per-stock decompositions, permutation
+importance, plain-English reasons, model cards) — see `wharton_ml_engine/ml/`.
+
 ---
 
 ## Why this design

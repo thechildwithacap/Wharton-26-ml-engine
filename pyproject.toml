@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wharton-ml-engine"
-version = "1.21.0"
+version = "1.22.0"
 description = "Multi-model ML investment engine for the Wharton Global High School Investment Competition (internal decision-support system)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+ml = ["lightgbm>=4.0"]
 
 [project.scripts]
 wharton-engine-demo = "run_demo:main"
@@ -24,16 +25,11 @@ wharton-engine-fetch = "fetch_dataset:main"
 wharton-engine-backtest = "backtest_compare:main"
 wharton-engine-paper = "paper_trade:main"
 
-[tool.setuptools]
-packages = ["wharton_ml_engine",
-            "wharton_ml_engine.data",
-            "wharton_ml_engine.client",
-            "wharton_ml_engine.signals",
-            "wharton_ml_engine.risk",
-            "wharton_ml_engine.backtest",
-            "wharton_ml_engine.ml",
-            "wharton_ml_engine.engine",
-            "wharton_ml_engine.reporting"]
+[tool.setuptools.packages.find]
+include = ["wharton_ml_engine*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: tests that take more than ~5s (full suite runs them; local dev can skip with -m 'not slow')",
+]

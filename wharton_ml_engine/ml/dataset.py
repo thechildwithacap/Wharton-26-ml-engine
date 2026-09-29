@@ -48,7 +48,19 @@ RAW_FUNDAMENTAL_FEATURES: List[str] = [f"f_{c}" for c in RAW_FUNDAMENTAL_FIELDS]
 EXTENDED_FEATURES: List[str] = ML_FEATURES + RAW_FUNDAMENTAL_FEATURES
 
 
-def feature_columns(extended: bool = False) -> List[str]:
+def feature_columns(extended=False) -> List[str]:
+    """Return a named feature set.
+
+    Backward-compatible: ``extended=True/False`` behaves as before. Also
+    accepts the set name directly — ``"base"`` (== ``False``) or ``"extended"``
+    (== ``True``) — since callers may prefer a self-describing string. Every
+    name returned here must have a :class:`~.features.FeatureSpec` registered
+    in :mod:`.features` (enforced by ``test_features_registry.py``).
+    """
+    if isinstance(extended, str):
+        if extended not in ("base", "extended"):
+            raise ValueError(f"unknown feature set {extended!r}; use 'base' or 'extended'")
+        extended = extended == "extended"
     return EXTENDED_FEATURES if extended else ML_FEATURES
 
 
@@ -107,6 +119,8 @@ def build_training_panel(
     end: Optional[pd.Timestamp] = None,
     min_history: int = 252,
     extended: bool = False,
+    point_in_time: bool = False,
+    universe_filter: Optional[object] = None,
 ) -> pd.DataFrame:
     """Return a tidy panel: date, ticker, <features>, fwd_return, fwd_excess, outperform.
 
@@ -114,6 +128,20 @@ def build_training_panel(
     date (the model's target — relative selection, not market direction).
     ``outperform`` is 1 if the name beat the cross-sectional median.
     ``extended`` adds the raw SEC fundamental rank features.
+
+    ``point_in_time=True`` restricts each rebalance date's cross-section (both
+    the feature ranks and the forward-return label pool) to
+    ``bundle.eligible_asof(d, universe_filter)`` — names that were actually
+    listed, not yet delisted, and above the liquidity floor *on that date* —
+    instead of every ticker present anywhere in the bundle. Without this, a
+    ticker that only joined the universe partway through history still has its
+    early-period cross-sectional ranks computed as if it had always been a
+    member, which both flatters IC (a future addition tends to be a survivor)
+    and is a look-ahead bias in the label pool. Requires the bundle's
+    ``SecurityMeta.listing_date``/``delisting_date`` to reflect true point-in-time
+    *index* membership (not just IPO/bankruptcy dates) for the effect to be
+    meaningful on real S&P-500-style data — a bundle with no listing/delisting
+    metadata set behaves identically to ``point_in_time=False``.
     """
     feature_cols = feature_columns(extended)
     dates = bundle.dates()
@@ -136,7 +164,14 @@ def build_training_panel(
         p1 = prices.iloc[j]
         fwd = (p1 / p0) - 1.0
 
-        feats = feature_frame(bundle, d, extended=extended)
+        if point_in_time:
+            members = bundle.eligible_asof(d, universe_filter)
+            if len(members) < 5:
+                continue
+            sub = bundle.restrict_universe(members)
+            feats = feature_frame(sub, d, extended=extended)
+        else:
+            feats = feature_frame(bundle, d, extended=extended)
         common = feats.index.intersection(fwd.dropna().index)
         if len(common) < 5:
             continue

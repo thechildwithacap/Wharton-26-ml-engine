@@ -102,11 +102,45 @@ def walk_forward_evaluate(
     n_splits: int = 5,
     min_train_periods: int = 12,
     purge_periods: int = 1,
+    horizon_days: Optional[int] = None,
+    research_only: bool = False,
+    holdout_start: Optional[pd.Timestamp] = None,
+    holdout_fraction: Optional[float] = None,
+    return_models: bool = False,
     **hp,
 ) -> Dict[str, object]:
-    """Expanding-window out-of-sample evaluation.  Returns OOS preds + metrics."""
+    """Expanding-window out-of-sample evaluation.  Returns OOS preds + metrics.
+
+    ``horizon_days`` is the forward-return label horizon the panel was built
+    with (see :func:`wharton_ml_engine.ml.dataset.build_training_panel`) — used
+    only to pick a Newey-West lag count for ``nw_t`` in the returned summary; it
+    never changes which rows are evaluated.
+
+    ``research_only=True`` drops any locked-holdout dates from ``panel``
+    *before* the walk-forward split, so a research/tuning run can never see
+    them. Default is ``False`` (unchanged historical behaviour, evaluates every
+    date in ``panel``) so existing callers are unaffected; pass
+    ``research_only=True`` explicitly wherever holdout discipline matters (see
+    :mod:`wharton_ml_engine.ml.validation`). Only
+    :func:`wharton_ml_engine.ml.validation.final_check` is meant to evaluate the
+    holdout itself, exactly once.
+
+    ``return_models=True`` additionally returns ``"folds"``: a list of
+    ``{"scaler", "model", "test_dates", "feature_names"}`` for each walk-forward
+    fold, so callers (e.g. :mod:`.explain`'s permutation importance) can re-score
+    a fold's already-fitted model on perturbed test data without ever fitting on
+    that fold's own test dates — genuine out-of-sample permutation importance,
+    not an in-sample one dressed up as OOS.
+    """
     feature_names = feature_names or ML_FEATURES
     target_col = "outperform" if task == "classification" else "fwd_excess"
+
+    if research_only and "date" in panel.columns and not panel.empty:
+        from .validation import DEFAULT_HOLDOUT_FRACTION, research_only_panel
+        panel = research_only_panel(
+            panel, holdout_start=holdout_start,
+            holdout_fraction=(holdout_fraction if holdout_fraction is not None
+                              else DEFAULT_HOLDOUT_FRACTION))
 
     dates = np.array(sorted(panel["date"].unique()))
     P = len(dates)
@@ -119,6 +153,7 @@ def walk_forward_evaluate(
     block = max(1, int(np.ceil(remaining / n_splits)))
 
     oos_rows: List[pd.DataFrame] = []
+    folds: List[Dict[str, object]] = []
     for b in range(test_start_idx, P, block):
         test_dates = dates[b:b + block]
         cutoff = dates[b - purge_periods] if b - purge_periods > 0 else dates[0]
@@ -138,20 +173,38 @@ def walk_forward_evaluate(
         rec = test[["date", "ticker", "fwd_return", "fwd_excess", "outperform"]].copy()
         rec["pred"] = pred
         oos_rows.append(rec)
+        if return_models:
+            folds.append({"scaler": scaler, "model": model,
+                         "test_dates": list(test_dates),
+                         "feature_names": list(feature_names)})
 
     if not oos_rows:
-        return {"oos": pd.DataFrame(), "ic": pd.Series(dtype=float),
-                "summary": ic_summary(pd.Series(dtype=float))}
+        result = {"oos": pd.DataFrame(), "ic": pd.Series(dtype=float),
+                 "summary": ic_summary(pd.Series(dtype=float))}
+        if return_models:
+            result["folds"] = folds
+        return result
 
     oos = pd.concat(oos_rows, ignore_index=True)
     ic = per_date_ic(oos, "pred", "fwd_return", method="rank")
     summary = ic_summary(ic)
+    # Newey-West-corrected significance alongside the naive one — metrics.
+    # ic_summary's ic_t_stat understates uncertainty for overlapping labels
+    # (see ml/validation.py). Best-effort: never blocks core evaluation.
+    try:
+        from .validation import ic_summary_nw
+        summary.update(ic_summary_nw(ic, horizon_days=horizon_days))
+    except Exception:
+        pass
     if task == "classification":
         summary["oos_accuracy"] = accuracy((oos["pred"] >= 0.5).astype(int).to_numpy(),
                                            oos["outperform"].to_numpy())
     else:
         summary["oos_r2"] = r2_score(oos["pred"].to_numpy(), oos["fwd_excess"].to_numpy())
-    return {"oos": oos, "ic": ic, "summary": summary}
+    result = {"oos": oos, "ic": ic, "summary": summary}
+    if return_models:
+        result["folds"] = folds
+    return result
 
 
 def train_alpha_model(
@@ -183,7 +236,7 @@ def train_alpha_model(
 
     evaluation = walk_forward_evaluate(
         panel, task=task, feature_names=feature_names, n_splits=n_splits,
-        min_train_periods=min_train_periods, **hp,
+        min_train_periods=min_train_periods, horizon_days=horizon_days, **hp,
     )
 
     # Final fit on all data for live scoring.
